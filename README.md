@@ -1,0 +1,28 @@
+# DSMPrompt
+
+## What is it?
+- DSMPrompt is an all in one solution for DSMing a show
+- Convert pdf scripts easily to our format
+- Export scripts
+- CRUD cues
+- Run shows
+- Use an open source 3d ESP based project to go to next line
+- And more!
+
+## How do I contribute?
+- Please fork the repo, and commit to a new branch
+- Then PR into this repo with your feature
+
+## Your OpenAI key!
+- Don't worry, it's revoked
+
+## Licence
+- Please check LICENSE!
+
+## Download...?
+- We currently are planning to open a public testflight
+- In the future we will hopefully release to the app store!
+
+## The code quality 
+- This app was written 2 days before a show - no judgement please!
+- Hopefully it will become better:) 
