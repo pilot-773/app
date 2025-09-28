@@ -3,6 +3,8 @@ name: Xcode - Build and Analyze
 on:
   pull_request:
     branches: [ "main" ]
+  push:
+    branches: [ "main" ]
 
 jobs:
   build:
