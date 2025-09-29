@@ -176,17 +176,25 @@ enum CueType: String, Codable, CaseIterable {
     case flyGo = "fly_go"
     case automationStandby = "automation_standby"
     case automationGo = "automation_go"
+    case setStandby = "set_standby"
+    case setGo = "set_go"
+    case cuelightStandby = "cuelight_standby"
+    case cuelightGo = "cuelight_go"
     
     var displayName: String {
         switch self {
         case .lightingStandby: return "LX Standby"
         case .lightingGo: return "LX GO"
-        case .soundStandby: return "Sound Standby"
-        case .soundGo: return "Sound GO"
+        case .soundStandby: return "SFX Standby"
+        case .soundGo: return "SFX GO"
         case .flyStandby: return "Fly Standby"
         case .flyGo: return "Fly GO"
         case .automationStandby: return "Auto Standby"
         case .automationGo: return "Auto GO"
+        case .setStandby: return "Set Standby"
+        case .setGo: return "Set GO"
+        case .cuelightStandby: return "Cuelight Standby"
+        case .cuelightGo: return "Cuelight GO"
         }
     }
     
@@ -196,6 +204,8 @@ enum CueType: String, Codable, CaseIterable {
         case .soundStandby, .soundGo: return "#FF6B6B"
         case .flyStandby, .flyGo: return "#4ECDC4"
         case .automationStandby, .automationGo: return "#45B7D1"
+        case .setStandby, .setGo: return "#944ECD"
+        case .cuelightStandby, .cuelightGo: return "#CD4EBC"
         }
     }
 }
