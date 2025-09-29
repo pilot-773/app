@@ -15,8 +15,10 @@ struct HomeScreenView: View {
     
     @State var navStackMessage: String = ""
     @State var addShow: Bool = false
+    @State var availableShows: [String] = []
     
-    //MARK: - Views
+    @StateObject private var mqttManager = MQTTManager()
+    
     var body: some View {
         NavigationStack {
             Group {
@@ -32,6 +34,14 @@ struct HomeScreenView: View {
             }
             .onAppear {
                 self.setupGreeting()
+                
+                mqttManager.connect(to: "192.168.1.185", port: 1883)
+                
+                mqttManager.subscribeToShowChanges { showId, message in
+                    if !availableShows.contains(showId) {
+                        availableShows.append(showId)
+                    }
+                }
             }
             .sheet(isPresented: self.$addShow) {
                 AddShowViewWrapper()
@@ -61,6 +71,19 @@ struct HomeScreenView: View {
                         }
                     }
                 }
+                
+                Section(header: Text("Or join a show")) {
+                    if availableShows.isEmpty {
+                        Text("No available shows")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(availableShows, id: \.self) { showId in
+                            NavigationLink(destination: Text("Join show \(showId)")) {
+                                Text("Show \(showId)")
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -78,7 +101,6 @@ struct HomeScreenView: View {
         }
     }
     
-    //MARK: - Functions
     private func setupGreeting() {
         let hour = Calendar.current.component(.hour, from: Date())
         if hour >= 5 && hour < 12 {

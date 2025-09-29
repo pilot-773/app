@@ -30,6 +30,8 @@ struct DSMPerformanceView: View {
     @State private var cueAlertTimer: Timer?
     @FocusState private var isViewFocused: Bool
     @StateObject private var bluetoothManager = PromptlyBluetoothManager()
+    @StateObject private var mqttManager = MQTTManager()
+
     
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
@@ -186,7 +188,9 @@ struct DSMPerformanceView: View {
             updateLinesCache()
             loadAllCues()
             updateCuesCache()
-
+            
+            mqttManager.connect(to: "192.168.1.185", port: 1883)
+            
             bluetoothManager.onButtonPress = { value in
                 if value == "1" {
                     withAnimation(.easeOut(duration: 0.1)) {
@@ -560,6 +564,7 @@ struct DSMPerformanceView: View {
                             isCurrent: line.lineNumber == currentLineNumber,
                             onLineTap: {
                                 currentLineNumber = line.lineNumber
+                                self.mqttManager.sendData(to: "shows/1/line", message: "\(line.lineNumber)")
                             },
                             calledCues: calledCues
                         )
@@ -1653,6 +1658,7 @@ extension DSMPerformanceView {
     private func moveToLine(_ lineNumber: Int) {
         guard lineNumber >= 1 && lineNumber <= sortedLinesCache.count else { return }
         currentLineNumber = lineNumber
+        self.mqttManager.sendData(to: "shows/1/line", message: String(lineNumber))
     }
     
     private func logCall(_ message: String, type: CallLogEntry.CallType = .note) {

@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		6F624EBF2DF370D700D17791 /* OpenAI in Frameworks */ = {isa = PBXBuildFile; productRef = 6F624EBE2DF370D700D17791 /* OpenAI */; };
 		6F624EC22DF373FF00D17791 /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = 6F624EC12DF373FF00D17791 /* Yams */; };
+		6FAE1C952E89E0A500D067BE /* MQTTNIO in Frameworks */ = {isa = PBXBuildFile; productRef = 6FAE1C942E89E0A500D067BE /* MQTTNIO */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -41,6 +42,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6FAE1C952E89E0A500D067BE /* MQTTNIO in Frameworks */,
 				6F624EC22DF373FF00D17791 /* Yams in Frameworks */,
 				6F624EBF2DF370D700D17791 /* OpenAI in Frameworks */,
 			);
@@ -53,6 +55,7 @@
 			isa = PBXGroup;
 			children = (
 				6F0425BB2DF0BFE5002B2081 /* Promptly */,
+				6FAE1C812E89DE6300D067BE /* Frameworks */,
 				6F0425BA2DF0BFE5002B2081 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -63,6 +66,13 @@
 				6F0425B92DF0BFE5002B2081 /* Promptly.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		6FAE1C812E89DE6300D067BE /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -88,6 +98,7 @@
 			packageProductDependencies = (
 				6F624EBE2DF370D700D17791 /* OpenAI */,
 				6F624EC12DF373FF00D17791 /* Yams */,
+				6FAE1C942E89E0A500D067BE /* MQTTNIO */,
 			);
 			productName = Promptly;
 			productReference = 6F0425B92DF0BFE5002B2081 /* Promptly.app */;
@@ -120,6 +131,7 @@
 			packageReferences = (
 				6F624EBD2DF370D700D17791 /* XCRemoteSwiftPackageReference "OpenAI" */,
 				6F624EC02DF373FF00D17791 /* XCRemoteSwiftPackageReference "Yams" */,
+				6FAE1C932E89E0A500D067BE /* XCRemoteSwiftPackageReference "mqtt-nio" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 6F0425BA2DF0BFE5002B2081 /* Products */;
@@ -394,6 +406,14 @@
 				minimumVersion = 6.0.0;
 			};
 		};
+		6FAE1C932E89E0A500D067BE /* XCRemoteSwiftPackageReference "mqtt-nio" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sroebert/mqtt-nio.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.8.1;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -406,6 +426,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 6F624EC02DF373FF00D17791 /* XCRemoteSwiftPackageReference "Yams" */;
 			productName = Yams;
+		};
+		6FAE1C942E89E0A500D067BE /* MQTTNIO */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6FAE1C932E89E0A500D067BE /* XCRemoteSwiftPackageReference "mqtt-nio" */;
+			productName = MQTTNIO;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
