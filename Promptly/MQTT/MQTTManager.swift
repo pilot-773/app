@@ -141,6 +141,26 @@ class MQTTManager: ObservableObject {
         startPeriodicUpdate(for: id)
     }
     
+    func removeShow(id: String) {
+        stopPeriodicUpdate(for: id)
+        
+        let topics = [
+            "shows/\(id)/title",
+            "shows/\(id)/location",
+            "shows/\(id)/scriptName",
+            "shows/\(id)/dsmNetworkIP",
+            "shows/\(id)/status",
+            "shows/\(id)/line",
+            "shows/\(id)/calledCues",
+            "shows/\(id)/timeCalls",
+            "shows/\(id)"
+        ]
+        
+        topics.forEach { topic in
+            client?.publish("", to: topic, qos: .atLeastOnce, retain: true)
+        }
+    }
+    
     func broadcastDevice(showId: String, deviceUUID: UUID) {
         let topic = "shows/\(showId)/devices/\(deviceUUID.uuidString)"
         
@@ -154,6 +174,15 @@ class MQTTManager: ObservableObject {
         timer.resume()
         
         deviceHeartbeatTimer = timer
+    }
+    
+    func removeDevice(showId: String, deviceUUID: UUID) {
+        let topic = "shows/\(showId)/devices/\(deviceUUID.uuidString)"
+        
+        deviceHeartbeatTimer?.cancel()
+        deviceHeartbeatTimer = nil
+        
+        sendData(to: topic, message: "offline")
     }
     
     func stopBroadcastingDevice() {

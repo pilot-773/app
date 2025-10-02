@@ -23,6 +23,8 @@ struct SpectatorPerformanceView: View {
     
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
+    @Environment(\.dismiss) var dismiss
+    
     var body: some View {
         GeometryReader { geometry in
             VStack(spacing: 0) {
@@ -98,12 +100,26 @@ struct SpectatorPerformanceView: View {
         .onReceive(timer) { _ in
             currentTime = Date()
         }
+        .onChange(of: self.status) { oldStatus, newStatus in
+            if newStatus == .completed {
+                Task {
+                    try? await Task.sleep(for: .seconds(2))
+                    if let deviceUUID = UUID(uuidString: UserDefaults.standard.string(forKey: "deviceUUID") ?? "") {
+                        mqttManager.removeDevice(
+                            showId: showId.uuidString,
+                            deviceUUID: deviceUUID
+                        )
+                    }
+                    dismiss()
+                }
+            }
+        }
     }
     
     private var spectatorHeader: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(script.name ?? "Performance")
+                Text(script.name)
                     .font(.headline)
                     .fontWeight(.bold)
                     .foregroundColor(.primary)

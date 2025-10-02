@@ -506,76 +506,6 @@ struct DSMPerformanceView: View {
         }
     }
     
-    // private var scriptContentView: some View {
-    //     ScrollViewReader { proxy in
-    //         ScrollView {
-    //             LazyVStack(alignment: .leading, spacing: 8) {
-    //                 ForEach(groupLinesBySection(), id: \.stableId) { group in
-    //                     if let section = group.section {
-    //                         DSMSectionHeaderView(section: section)
-    //                             .id("section-\(section.id)")
-    //                     }
-    //
-    //                     // ForEach(group.lines, id: \.id) { line in
-    //                     //     DSMScriptLineView(
-    //                     //         line: line,
-    //                     //         isCurrent: line.lineNumber == currentLineNumber,
-    //                     //         onLineTap: {
-    //                     //             currentLineNumber = line.lineNumber
-    //                     //         },
-    //                     //         calledCues: calledCues
-    //                     //     )
-    //                     //     .id("line-\(line.lineNumber)")
-    //                     // }
-    //
-    //                     // ForEach(group.lines, id: \.id) { line in
-    //                     //     if abs(line.lineNumber - currentLineNumber) < 50 {
-    //                     //         DSMScriptLineView(
-    //                     //             line: line,
-    //                     //             isCurrent: line.lineNumber == currentLineNumber,
-    //                     //             onLineTap: {
-    //                     //                 currentLineNumber = line.lineNumber
-    //                     //             },
-    //                     //             calledCues: calledCues
-    //                     //         )
-    //                     //     }
-    //                     // }
-    //
-    //                     ForEach(group.lines.prefix(500), id: \.id) { line in
-    //                         Text("L\(line.lineNumber): \(line.content)")
-    //                             .padding(.vertical, 4)
-    //                             .id("line-\(line.lineNumber)")
-    //                     }
-    //                 }
-    //             }
-    //             .padding()
-    //         }
-    //         .onChange(of: currentLineNumber) { _, newValue in
-    //             withAnimation(.easeOut(duration: 0.15)) {
-    //                 proxy.scrollTo("line-\(newValue)", anchor: .center)
-    //             }
-    //         }
-    //     }
-    // }
-    
-    // private var scriptContentView: some View {
-    //     ScrollViewReader { proxy in
-    //         ScrollView {
-    //             LazyVStack(alignment: .leading, spacing: 8) {
-    //                 ForEach(sortedLinesCache.prefix(300), id: \.id) { line in
-    //                     Text("L\(line.lineNumber): \(line.content)")
-    //                         .padding(.vertical, 4)
-    //                         .id("line-\(line.lineNumber)")
-    //                 }
-    //             }
-    //             .padding()
-    //         }
-    //         .onChange(of: currentLineNumber) { _, newValue in
-    //             proxy.scrollTo("line-\(newValue)", anchor: .center)
-    //         }
-    //     }
-    // }
-    
     private var scriptContentView: some View {
         let showUUID = self.uuidOfShow
         print("🔍 scriptContentView rendering - uuidOfShow: '\(showUUID)'")
@@ -1584,7 +1514,8 @@ extension DSMPerformanceView {
         try? modelContext.save()
         
         // Dismiss the DSM view after a brief delay to show the completion state
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            self.mqttManager.removeShow(id: self.uuidOfShow)
             dismiss()
         }
     }

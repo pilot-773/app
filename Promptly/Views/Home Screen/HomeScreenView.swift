@@ -15,6 +15,7 @@ struct HomeScreenView: View {
     
     @State var navStackMessage: String = ""
     @State var addShow: Bool = false
+    @State var showNetworkSettings: Bool = false
     @State var availableShows: [String] = []
     
     @StateObject private var mqttManager = MQTTManager()
@@ -45,6 +46,9 @@ struct HomeScreenView: View {
             }
             .sheet(isPresented: self.$addShow) {
                 AddShowViewWrapper()
+            }
+            .sheet(isPresented: self.$showNetworkSettings) {
+                NetworkSettingsView()
             }
         }
     }
@@ -91,12 +95,15 @@ struct HomeScreenView: View {
     var toolbarContent: some View {
         Group {
             Button {
+                self.showNetworkSettings = true
+            } label: {
+                Label("Network Settings", systemImage: "network")
+            }
+            
+            Button {
                 self.addShow = true
             } label: {
-                Label(
-                    "Add Show",
-                    systemImage: "plus"
-                )
+                Label("Add Show", systemImage: "plus")
             }
         }
     }
@@ -111,6 +118,52 @@ struct HomeScreenView: View {
             self.navStackMessage = "Good Evening"
         } else {
             self.navStackMessage = "Good Night"
+        }
+    }
+}
+
+struct NetworkSettingsView: View {
+    @Environment(\.dismiss) var dismiss
+    
+    @State private var mqttIP: String = Constants.mqttIP
+    @State private var mqttPort: String = String(Constants.mqttPort)
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("MQTT IP Address", text: $mqttIP)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    
+                    TextField("MQTT Port", text: $mqttPort)
+                        .keyboardType(.numberPad)
+                } header: {
+                    Text("Connection Settings")
+                } footer: {
+                    Text("To apply changes, restart the app")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Network Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        if let port = Int(mqttPort) {
+                            Constants.mqttIP = mqttIP
+                            Constants.mqttPort = port
+                        }
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }
