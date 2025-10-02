@@ -16,7 +16,7 @@ struct HomeScreenView: View {
     @State var navStackMessage: String = ""
     @State var addShow: Bool = false
     @State var showNetworkSettings: Bool = false
-    @State var availableShows: [String] = []
+    @State var availableShows: [String: String] = [:]
     
     @StateObject private var mqttManager = MQTTManager()
     
@@ -38,9 +38,9 @@ struct HomeScreenView: View {
                 
                 mqttManager.connect(to: Constants.mqttIP, port: Constants.mqttPort)
                 
-                mqttManager.subscribeToShowChanges { showId, message in
-                    if UUID(uuidString: showId) != nil && !availableShows.contains(showId) {
-                        availableShows.append(showId)
+                mqttManager.subscribeToShowChanges { showId, property, message, title in
+                    if UUID(uuidString: showId) != nil && availableShows[showId] == nil {
+                        availableShows[showId] = title ?? "Unknown Show"
                     }
                 }
             }
@@ -81,9 +81,9 @@ struct HomeScreenView: View {
                         Text("No available shows")
                             .foregroundStyle(.secondary)
                     } else {
-                        ForEach(availableShows, id: \.self) { showId in
+                        ForEach(Array(availableShows.keys), id: \.self) { showId in
                             NavigationLink(destination: MultiPlayerShowDetail(showID: showId, mqttManager: self.mqttManager)) {
-                                Text("Show \(showId)")
+                                Text(availableShows[showId] ?? "Unknown Show")
                             }
                         }
                     }
