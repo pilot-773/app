@@ -3,6 +3,7 @@ import SwiftData
 import Foundation
 import Network
 import Darwin
+import Combine
 
 struct DSMPerformanceView: View {
     @Environment(\.modelContext) private var modelContext
@@ -124,6 +125,50 @@ struct DSMPerformanceView: View {
     }
     
     var body: some View {
+        mainContentView
+            .applyDSMModifiers(
+                isViewFocused: $isViewFocused,
+                showingStopAlert: $showingStopAlert,
+                showingEndConfirmation: $showingEndConfirmation,
+                showingBluetoothSettings: $showingBluetoothSettings,
+                showingSettings: $showingSettings,
+                showingDetails: $showingDetails,
+                stopReason: $stopReason,
+                keepDisplayAwake: $keepDisplayAwake,
+                scrollToChangesActiveLine: $scrollToChangesActiveLine,
+                performance: performance,
+                showId: uuidOfShow,
+                mqttManager: mqttManager,
+                timing: $performanceTiming,
+                callsLog: $callsLog,
+                currentState: $currentState,
+                isShowRunning: $isShowRunning,
+                canMakeQuickCalls: canMakeQuickCalls,
+                bluetoothManager: bluetoothManager,
+                onAppear: setupView,
+                onDisappear: cleanupView,
+                onStateChange: handleStateChange,
+                onStartShow: startShow,
+                onStopShow: { showingStopAlert = true },
+                onEndShow: { showingEndConfirmation = true },
+                onStartInterval: startInterval,
+                onStartNextAct: startNextAct,
+                onEmergencyStop: emergencyStop,
+                onEndPerformance: endPerformance,
+                onCacheUpdate: updateCuesCache,
+                onScriptChange: handleScriptChange,
+                onLineMove: moveToLine,
+                onCueExecute: executeNextCue,
+                timer: timer,
+                currentTime: $currentTime,
+                allCues: allCues,
+                hiddenCues: hiddenCues,
+                sortedLinesCache: sortedLinesCache,
+                script: script
+            )
+    }
+
+    private var mainContentView: some View {
         GeometryReader { geometry in
             ZStack {
                 VStack(spacing: 0) {
@@ -167,135 +212,77 @@ struct DSMPerformanceView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .navigationBarHidden(true)
-        .preferredColorScheme(.dark)
-        .focusable()
-        .focused($isViewFocused)
-        .onKeyPress(.downArrow) {
-            withAnimation(.easeOut(duration: 0.1)) {
-                moveToLine(currentLineNumber + 1)
-            }
-            return .handled
-        }
-        .onKeyPress(.upArrow) {
-            withAnimation(.easeOut(duration: 0.1)) {
-                moveToLine(currentLineNumber - 1)
-            }
-            return .handled
-        }
-        .onAppear {
-            isViewFocused = true
-            if keepDisplayAwake {
-                UIApplication.shared.isIdleTimerDisabled = true
-            }
+    }
 
-            sortedLinesCache = script?.lines.sorted { $0.lineNumber < $1.lineNumber } ?? []
-            updateLinesCache()
-            loadAllCues()
-            updateCuesCache()
+    private func setupView() {
+        isViewFocused = true
+        if keepDisplayAwake {
+            UIApplication.shared.isIdleTimerDisabled = true
+        }
+
+        sortedLinesCache = script?.lines.sorted { $0.lineNumber < $1.lineNumber } ?? []
+        updateLinesCache()
+        loadAllCues()
+        updateCuesCache()
+        
+        mqttManager.connect(to: Constants.mqttIP, port: Constants.mqttPort)
+        
+        if let show = performance.show {
+            guard let scriptDict = show.script?.toDictionary() else {
+                print("well fuck uhhhh my guy u are cookido")
+                return
+            }
+            jsonServer.start(dataToServe: scriptDict)
             
-            mqttManager.connect(to: Constants.mqttIP, port: Constants.mqttPort)
-            
-            if let show = self.performance.show {
-                guard let scriptDict = show.script?.toDictionary() else {
-                    print("well fuck uhhhh my guy u are cookido")
-                    return
-                }
-                jsonServer.start(dataToServe: scriptDict)
-                
-                mqttManager.sendOutShow(
-                    id: show.id.uuidString,
-                    title: show.title,
-                    location: show.locationString,
-                    scriptName: show.script?.name,
-                    status: self.currentState.displayName,
-                    dsmNetworkIP: self.getLocalIPAddress() ?? "N/A"
-                )
-                
-                let showUUID = show.id.uuidString
-                print("🚀 Setting uuidOfShow to: '\(showUUID)'")
-                self.uuidOfShow = showUUID
-                
-                print("🚀 Sending initial line with UUID: '\(showUUID)'")
-                self.mqttManager.sendData(to: "shows/\(showUUID)/line", message: "1")
-            }
-            
-            
-            bluetoothManager.onButtonPress = { value in
-                if value == "1" {
-                    withAnimation(.easeOut(duration: 0.1)) {
-                        moveToLine(currentLineNumber + 1)
-                    }
-                } else if value == "0" {
-                    withAnimation(.easeOut(duration: 0.1)) {
-                        moveToLine(currentLineNumber - 1)
-                    }
-                } else if value == "2" {
-                    executeNextCue()
-                }
-            }
-        }
-        .onChange(of: allCues) { _, _ in updateCuesCache() }
-        .onChange(of: hiddenCues) { _, _ in updateCuesCache() }
-        .onChange(of: sortedLinesCache) { _, _ in updateCuesCache() }
-        .onChange(of: script) { _, _ in
-            updateLinesCache()
-            loadAllCues()
-            updateCuesCache()
-        }
-        .onDisappear {
-            UIApplication.shared.isIdleTimerDisabled = false
-            for timer in cueHideTimers.values {
-                timer.invalidate()
-            }
-            cueHideTimers.removeAll()
-            cueAlertTimer?.invalidate()
-        }
-        .onReceive(timer) { _ in
-            currentTime = Date()
-        }
-        .alert("Emergency Stop", isPresented: $showingStopAlert) {
-            TextField("Reason", text: $stopReason)
-            Button("Cancel", role: .cancel) { }
-            Button("Stop Show", role: .destructive) {
-                emergencyStop()
-            }
-        }
-        .alert("End Performance", isPresented: $showingEndConfirmation) {
-            Button("Cancel", role: .cancel) { }
-            Button("End Show") {
-                endPerformance()
-            }
-        }
-        .sheet(isPresented: $showingBluetoothSettings) {
-            PromptlyBluetoothSettingsView(bluetoothManager: bluetoothManager)
-        }
-        .sheet(isPresented: $showingSettings) {
-            DSMSettingsView(
-                keepDisplayAwake: $keepDisplayAwake,
-                scrollToChangesActiveLine: $scrollToChangesActiveLine
+            mqttManager.sendOutShow(
+                id: show.id.uuidString,
+                title: show.title,
+                location: show.locationString,
+                scriptName: show.script?.name,
+                status: currentState,
+                dsmNetworkIP: getLocalIPAddress() ?? "N/A"
             )
+            
+            let showUUID = show.id.uuidString
+            print("🚀 Setting uuidOfShow to: '\(showUUID)'")
+            uuidOfShow = showUUID
+            
+            print("🚀 Sending initial line with UUID: '\(showUUID)'")
+            mqttManager.sendData(to: "shows/\(showUUID)/line", message: "1")
         }
-        .sheet(isPresented: $showingDetails) {
-            DSMDetailsView(
-                performance: performance,
-                showId: self.uuidOfShow,
-                mqttManager: mqttManager,
-                timing: $performanceTiming,
-                callsLog: $callsLog,
-                currentState: $currentState,
-                isShowRunning: $isShowRunning,
-                canMakeQuickCalls: canMakeQuickCalls,
-                onStartShow: { startShow() },
-                onStopShow: { showingStopAlert = true },
-                onEndShow: { showingEndConfirmation = true },
-                onStartInterval: { startInterval() },
-                onStartNextAct: { startNextAct() }
-            )
+        
+        bluetoothManager.onButtonPress = { value in
+            if value == "1" {
+                withAnimation(.easeOut(duration: 0.1)) {
+                    moveToLine(currentLineNumber + 1)
+                }
+            } else if value == "0" {
+                withAnimation(.easeOut(duration: 0.1)) {
+                    moveToLine(currentLineNumber - 1)
+                }
+            } else if value == "2" {
+                executeNextCue()
+            }
         }
-        .onChange(of: self.currentState) {_, _ in
-            self.mqttManager.sendData(to: "shows/\(self.uuidOfShow)/status", message: currentState.displayName)
+    }
+
+    private func cleanupView() {
+        UIApplication.shared.isIdleTimerDisabled = false
+        for timer in cueHideTimers.values {
+            timer.invalidate()
         }
+        cueHideTimers.removeAll()
+        cueAlertTimer?.invalidate()
+    }
+
+    private func handleStateChange() {
+        mqttManager.sendData(to: "shows/\(uuidOfShow)/status", message: currentState.displayName)
+    }
+
+    private func handleScriptChange() {
+        updateLinesCache()
+        loadAllCues()
+        updateCuesCache()
     }
     
     private var compactHeader: some View {
@@ -1830,3 +1817,108 @@ extension CueType {
 }
 
 
+extension View {
+    func applyDSMModifiers(
+        isViewFocused: FocusState<Bool>.Binding,
+        showingStopAlert: Binding<Bool>,
+        showingEndConfirmation: Binding<Bool>,
+        showingBluetoothSettings: Binding<Bool>,
+        showingSettings: Binding<Bool>,
+        showingDetails: Binding<Bool>,
+        stopReason: Binding<String>,
+        keepDisplayAwake: Binding<Bool>,
+        scrollToChangesActiveLine: Binding<Bool>,
+        performance: Performance,
+        showId: String,
+        mqttManager: MQTTManager,
+        timing: Binding<PerformanceTiming>,
+        callsLog: Binding<[CallLogEntry]>,
+        currentState: Binding<PerformanceState>,
+        isShowRunning: Binding<Bool>,
+        canMakeQuickCalls: Bool,
+        bluetoothManager: PromptlyBluetoothManager,
+        onAppear: @escaping () -> Void,
+        onDisappear: @escaping () -> Void,
+        onStateChange: @escaping () -> Void,
+        onStartShow: @escaping () -> Void,
+        onStopShow: @escaping () -> Void,
+        onEndShow: @escaping () -> Void,
+        onStartInterval: @escaping () -> Void,
+        onStartNextAct: @escaping () -> Void,
+        onEmergencyStop: @escaping () -> Void,
+        onEndPerformance: @escaping () -> Void,
+        onCacheUpdate: @escaping () -> Void,
+        onScriptChange: @escaping () -> Void,
+        onLineMove: @escaping (Int) -> Void,
+        onCueExecute: @escaping () -> Void,
+        timer: Publishers.Autoconnect<Timer.TimerPublisher>,
+        currentTime: Binding<Date>,
+        allCues: [Cue],
+        hiddenCues: Set<UUID>,
+        sortedLinesCache: [ScriptLine],
+        script: Script?
+    ) -> some View {
+        self
+            .navigationBarHidden(true)
+            .preferredColorScheme(.dark)
+            .focusable()
+            .focused(isViewFocused)
+            .onKeyPress(.downArrow) {
+                withAnimation(.easeOut(duration: 0.1)) {
+                    onLineMove(sortedLinesCache.first(where: { $0.lineNumber > sortedLinesCache.first?.lineNumber ?? 0 })?.lineNumber ?? 1)
+                }
+                return .handled
+            }
+            .onKeyPress(.upArrow) {
+                withAnimation(.easeOut(duration: 0.1)) {
+                    onLineMove(sortedLinesCache.first(where: { $0.lineNumber < sortedLinesCache.first?.lineNumber ?? 0 })?.lineNumber ?? 1)
+                }
+                return .handled
+            }
+            .onAppear(perform: onAppear)
+            .onChange(of: allCues) { _, _ in onCacheUpdate() }
+            .onChange(of: hiddenCues) { _, _ in onCacheUpdate() }
+            .onChange(of: sortedLinesCache) { _, _ in onCacheUpdate() }
+            .onChange(of: script) { _, _ in onScriptChange() }
+            .onChange(of: currentState.wrappedValue) { _, _ in onStateChange() }
+            .onDisappear(perform: onDisappear)
+            .onReceive(timer) { _ in
+                currentTime.wrappedValue = Date()
+            }
+            .alert("Emergency Stop", isPresented: showingStopAlert) {
+                TextField("Reason", text: stopReason)
+                Button("Cancel", role: .cancel) { }
+                Button("Stop Show", role: .destructive, action: onEmergencyStop)
+            }
+            .alert("End Performance", isPresented: showingEndConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("End Show", action: onEndPerformance)
+            }
+            .sheet(isPresented: showingBluetoothSettings) {
+                PromptlyBluetoothSettingsView(bluetoothManager: bluetoothManager)
+            }
+            .sheet(isPresented: showingSettings) {
+                DSMSettingsView(
+                    keepDisplayAwake: keepDisplayAwake,
+                    scrollToChangesActiveLine: scrollToChangesActiveLine
+                )
+            }
+            .sheet(isPresented: showingDetails) {
+                DSMDetailsView(
+                    performance: performance,
+                    showId: showId,
+                    mqttManager: mqttManager,
+                    timing: timing,
+                    callsLog: callsLog,
+                    currentState: currentState,
+                    isShowRunning: isShowRunning,
+                    canMakeQuickCalls: canMakeQuickCalls,
+                    onStartShow: onStartShow,
+                    onStopShow: onStopShow,
+                    onEndShow: onEndShow,
+                    onStartInterval: onStartInterval,
+                    onStartNextAct: onStartNextAct
+                )
+            }
+    }
+}
