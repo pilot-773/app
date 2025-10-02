@@ -9,6 +9,10 @@
 - Use an open source 3d ESP based project to integrate line-syncing across devices.
 - And more!
 
+## Line syncing?
+- Yep! By connecting to a MQTT server running on a WiFi network, experiece line by line sync between the DSM and anybody else! Cues are synced also - so everynody is on the same page. No longer are the days where you need to ask the DSM where the show currently is!
+
+
 ## How do I contribute?
 - Please fork the repo, and commit to a new branch
 - Then PR into this repo with your feature
