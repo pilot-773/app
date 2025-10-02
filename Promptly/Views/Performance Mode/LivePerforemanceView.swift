@@ -1,5 +1,8 @@
 import SwiftUI
 import SwiftData
+import Foundation
+import Network
+import Darwin
 
 struct DSMPerformanceView: View {
     @Environment(\.modelContext) private var modelContext
@@ -28,9 +31,11 @@ struct DSMPerformanceView: View {
     @State private var cueExecutions: [ReportCueExecution] = []
     @State private var showingCueAlert = false
     @State private var cueAlertTimer: Timer?
+    @State private var uuidOfShow: String = ""
     @FocusState private var isViewFocused: Bool
     @StateObject private var bluetoothManager = PromptlyBluetoothManager()
     @StateObject private var mqttManager = MQTTManager()
+    @StateObject private var jsonServer = JSONServer(port: 8080)
 
     
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -189,7 +194,32 @@ struct DSMPerformanceView: View {
             loadAllCues()
             updateCuesCache()
             
-            mqttManager.connect(to: "192.168.1.185", port: 1883)
+            mqttManager.connect(to: Constants.mqttIP, port: Constants.mqttPort)
+            
+            if let show = self.performance.show {
+                guard let scriptDict = show.script?.toDictionary() else {
+                    print("well fuck uhhhh my guy u are cookido")
+                    return
+                }
+                jsonServer.start(dataToServe: scriptDict)
+                
+                mqttManager.sendOutShow(
+                    id: show.id.uuidString,
+                    title: show.title,
+                    location: show.locationString,
+                    scriptName: show.script?.name,
+                    status: self.currentState.displayName,
+                    dsmNetworkIP: self.getLocalIPAddress() ?? "N/A"
+                )
+                
+                let showUUID = show.id.uuidString
+                print("🚀 Setting uuidOfShow to: '\(showUUID)'")
+                self.uuidOfShow = showUUID
+                
+                print("🚀 Sending initial line with UUID: '\(showUUID)'")
+                self.mqttManager.sendData(to: "shows/\(showUUID)/line", message: "1")
+            }
+            
             
             bluetoothManager.onButtonPress = { value in
                 if value == "1" {
@@ -249,6 +279,8 @@ struct DSMPerformanceView: View {
         .sheet(isPresented: $showingDetails) {
             DSMDetailsView(
                 performance: performance,
+                showId: self.uuidOfShow,
+                mqttManager: mqttManager,
                 timing: $performanceTiming,
                 callsLog: $callsLog,
                 currentState: $currentState,
@@ -260,6 +292,9 @@ struct DSMPerformanceView: View {
                 onStartInterval: { startInterval() },
                 onStartNextAct: { startNextAct() }
             )
+        }
+        .onChange(of: self.currentState) {_, _ in
+            self.mqttManager.sendData(to: "shows/\(self.uuidOfShow)/status", message: currentState.displayName)
         }
     }
     
@@ -555,7 +590,10 @@ struct DSMPerformanceView: View {
     // }
     
     private var scriptContentView: some View {
-        ScrollViewReader { proxy in
+        let showUUID = self.uuidOfShow
+        print("🔍 scriptContentView rendering - uuidOfShow: '\(showUUID)'")
+        
+        return ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 8) {
                     ForEach(sortedLinesCache, id: \.id) { line in
@@ -563,8 +601,12 @@ struct DSMPerformanceView: View {
                             line: line,
                             isCurrent: line.lineNumber == currentLineNumber,
                             onLineTap: {
+                                print("🎯 Tapped line \(line.lineNumber)")
+                                print("🔍 showUUID in closure: '\(showUUID)'")
+                                print("🔍 self.uuidOfShow in closure: '\(self.uuidOfShow)'")
+                                
                                 currentLineNumber = line.lineNumber
-                                self.mqttManager.sendData(to: "shows/1/line", message: "\(line.lineNumber)")
+                                self.mqttManager.sendData(to: "shows/\(showUUID)/line", message: "\(line.lineNumber)")
                             },
                             calledCues: calledCues
                         )
@@ -574,7 +616,7 @@ struct DSMPerformanceView: View {
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .background(Color(.systemBackground)) // improves gesture hitbox
+            .background(Color(.systemBackground))
             .onChange(of: currentLineNumber) { _, newValue in
                 proxy.scrollTo("line-\(newValue)", anchor: .center)
             }
@@ -721,6 +763,40 @@ struct DSMPerformanceView: View {
         let seconds = Int(interval) % 60
         
         return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+    }
+    
+    func getLocalIPAddress() -> String? {
+        var address: String?
+        var ifaddr: UnsafeMutablePointer<ifaddrs>?
+        
+        guard getifaddrs(&ifaddr) == 0 else { return nil }
+        guard let firstAddr = ifaddr else { return nil }
+        
+        defer { freeifaddrs(ifaddr) }
+        
+        for ifptr in sequence(first: firstAddr, next: { $0.pointee.ifa_next }) {
+            let interface = ifptr.pointee
+            let addrFamily = interface.ifa_addr.pointee.sa_family
+            
+            if addrFamily == UInt8(AF_INET) {
+                let name = String(cString: interface.ifa_name)
+                
+                if name == "en0" || name == "en1" || name.starts(with: "en") {
+                    var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                    getnameinfo(interface.ifa_addr,
+                               socklen_t(interface.ifa_addr.pointee.sa_len),
+                               &hostname,
+                               socklen_t(hostname.count),
+                               nil,
+                               socklen_t(0),
+                               NI_NUMERICHOST)
+                    address = String(cString: hostname)
+                    break
+                }
+            }
+        }
+        
+        return address
     }
 }
 
@@ -1104,6 +1180,8 @@ struct DSMCueBoxView: View {
 
 struct DSMDetailsView: View {
     let performance: Performance
+    let showId: String
+    @ObservedObject var mqttManager: MQTTManager
     @Binding var timing: PerformanceTiming
     @Binding var callsLog: [CallLogEntry]
     @Binding var currentState: PerformanceState
@@ -1171,6 +1249,7 @@ struct DSMDetailsView: View {
                                         timing.houseOpenTime = Date()
                                         timing.currentState = .houseOpen
                                         logCall("House Open", type: .action)
+                                        self.mqttManager.sendData(to: "shows/\(showId)/timeCalls", message: "House Open")
                                     }
                                 }
                                 
@@ -1185,6 +1264,7 @@ struct DSMDetailsView: View {
                                         timing.clearanceTime = Date()
                                         timing.currentState = .clearance
                                         logCall("Stage Clear - Beginners", type: .call)
+                                        self.mqttManager.sendData(to: "shows/\(showId)/timeCalls", message: "Stage Clear")
                                     }
                                 }
                                 
@@ -1268,15 +1348,19 @@ struct DSMDetailsView: View {
                             ], spacing: 12) {
                                 DSMCallButton(title: "Half Hour", time: "35 min") {
                                     logCall("Half Hour Call", type: .call)
+                                    self.mqttManager.sendData(to: "shows/\(showId)/timeCalls", message: "Half Hour Call (35 min)")
                                 }
                                 DSMCallButton(title: "Quarter Hour", time: "20 min") {
                                     logCall("Quarter Hour Call", type: .call)
+                                    self.mqttManager.sendData(to: "shows/\(showId)/timeCalls", message: "Quarter Hour Call (20 min)")
                                 }
                                 DSMCallButton(title: "Five Minutes", time: "10 min") {
                                     logCall("Five Minutes Call", type: .call)
+                                    self.mqttManager.sendData(to: "shows/\(showId)/timeCalls", message: "Five Minutes Call (10 min)")
                                 }
                                 DSMCallButton(title: "Beginners", time: "5 min") {
                                     logCall("Beginners Call", type: .call)
+                                    self.mqttManager.sendData(to: "shows/\(showId)/timeCalls", message: "Beginners Call (5 min)")
                                 }
                             }
                         }
@@ -1615,6 +1699,13 @@ extension DSMPerformanceView {
             }
             cueHideTimers[cue.id] = timer
         }
+        
+        // SEND THE UPDATE HERE
+        let uuidStrings = calledCues.map { $0.uuidString }
+        if let jsonData = try? JSONEncoder().encode(uuidStrings),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            mqttManager.sendData(to: "shows/\(uuidOfShow)/calledCues", message: jsonString)
+        }
     }
     
     private func executeNextCue() {
@@ -1640,6 +1731,13 @@ extension DSMPerformanceView {
         } else {
             logCall("REMOTE GO: \(cue.label)", type: .action)
         }
+        
+        // SEND THE UPDATE HERE TOO
+        let uuidStrings = calledCues.map { $0.uuidString }
+        if let jsonData = try? JSONEncoder().encode(uuidStrings),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            mqttManager.sendData(to: "shows/\(uuidOfShow)/calledCues", message: jsonString)
+        }
     }
     
     private func findNextCueFromCurrentLine() -> Cue? {
@@ -1658,7 +1756,7 @@ extension DSMPerformanceView {
     private func moveToLine(_ lineNumber: Int) {
         guard lineNumber >= 1 && lineNumber <= sortedLinesCache.count else { return }
         currentLineNumber = lineNumber
-        self.mqttManager.sendData(to: "shows/1/line", message: String(lineNumber))
+        self.mqttManager.sendData(to: "shows/\(self.uuidOfShow)/line", message: String(lineNumber))
     }
     
     private func logCall(_ message: String, type: CallLogEntry.CallType = .note) {

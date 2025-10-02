@@ -35,10 +35,10 @@ struct HomeScreenView: View {
             .onAppear {
                 self.setupGreeting()
                 
-                mqttManager.connect(to: "192.168.1.185", port: 1883)
+                mqttManager.connect(to: Constants.mqttIP, port: Constants.mqttPort)
                 
                 mqttManager.subscribeToShowChanges { showId, message in
-                    if !availableShows.contains(showId) {
+                    if UUID(uuidString: showId) != nil && !availableShows.contains(showId) {
                         availableShows.append(showId)
                     }
                 }
@@ -78,7 +78,7 @@ struct HomeScreenView: View {
                             .foregroundStyle(.secondary)
                     } else {
                         ForEach(availableShows, id: \.self) { showId in
-                            NavigationLink(destination: Text("Join show \(showId)")) {
+                            NavigationLink(destination: MultiPlayerShowDetail(showID: showId, mqttManager: self.mqttManager)) {
                                 Text("Show \(showId)")
                             }
                         }
