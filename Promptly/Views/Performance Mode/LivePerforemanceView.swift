@@ -1635,6 +1635,7 @@ extension DSMPerformanceView {
         }
         
         calledCues.insert(cue.id)
+        
         let execution = ReportCueExecution(
             timestamp: Date(),
             cueLabel: cue.label,
@@ -1644,13 +1645,24 @@ extension DSMPerformanceView {
         )
         cueExecutions.append(execution)
         
+        if cue.hasAlert {
+            showCueAlert()
+        }
+        
         if cue.type.isStandby {
             logCall("REMOTE STANDBY: \(cue.label)", type: .call)
         } else {
             logCall("REMOTE GO: \(cue.label)", type: .action)
         }
         
-        // SEND THE UPDATE HERE TOO
+        let timer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { _ in
+            withAnimation(.easeOut(duration: 0.3)) {
+                hiddenCues.insert(cue.id)
+            }
+            cueHideTimers.removeValue(forKey: cue.id)
+        }
+        cueHideTimers[cue.id] = timer
+        
         let uuidStrings = calledCues.map { $0.uuidString }
         if let jsonData = try? JSONEncoder().encode(uuidStrings),
            let jsonString = String(data: jsonData, encoding: .utf8) {
