@@ -82,22 +82,27 @@ class MQTTManager: ObservableObject {
         client?.unsubscribe(from: topic)
     }
     
-    func subscribeToShowChanges(onChange: @escaping (String, String) -> Void) {
+    func subscribeToShowChanges(onChange: @escaping (String, String, String, String?) -> Void) {
         let showsPattern = "shows/#"
         
         client?.messagePublisher
             .filter { message in
                 let components = message.topic.split(separator: "/")
-                return components.count == 2 && components.first == "shows"
+                return components.count >= 2 && components.first == "shows"
             }
-            .sink { message in
+            .sink { [weak self] message in
                 let topic = message.topic
                 let messageString = message.payload.string ?? ""
+                let components = topic.split(separator: "/").map(String.init)
                 
-                if let showId = topic.split(separator: "/").last.map(String.init) {
-                    DispatchQueue.main.async {
-                        onChange(showId, messageString)
-                    }
+                guard components.count >= 2 else { return }
+                
+                let showId = components[1]
+                let property = components.count > 2 ? components[2] : ""
+                let title = self?.receivedMessages["shows/\(showId)/title"]
+                
+                DispatchQueue.main.async {
+                    onChange(showId, property, messageString, title)
                 }
             }
             .store(in: &cancellables)
