@@ -30,3 +30,8 @@
 ## The code quality 
 - This app was written 2 days before a show - no judgement please!
 - Hopefully it will become better:) 
+
+## Legal 
+- For support, please open an issue 
+- [Privacy Policy](https://github.com/DSMPrompt/app/blob/main/PRIVACY.md)
+- [EULA](https://github.com/DSMPrompt/app/blob/main/EULA.md)
