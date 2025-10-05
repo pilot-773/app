@@ -1751,7 +1751,7 @@ extension PerformanceState {
 extension CueType {
     var isStandby: Bool {
         switch self {
-        case .lightingStandby, .soundStandby, .flyStandby, .automationStandby:
+        case .lightingStandby, .soundStandby, .flyStandby, .automationStandby, .setStandby, .cuelightStandby:
             return true
         default:
             return false
