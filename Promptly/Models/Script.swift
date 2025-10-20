@@ -75,16 +75,18 @@ class ScriptLine: Identifiable {
     var id: UUID
     var lineNumber: Int
     var content: String // Raw text content
+    var flags: [ScriptLineFlags] = []
     @Relationship(deleteRule: .cascade) var elements: [LineElement] = []
     @Relationship(deleteRule: .cascade) var cues: [Cue] = []
     var isMarked: Bool = false
     var markColor: String? // Hex color for line marking
     var notes: String = ""
     
-    init(id: UUID, lineNumber: Int, content: String) {
+    init(id: UUID, lineNumber: Int, content: String, flags: [ScriptLineFlags]) {
         self.id = id
         self.lineNumber = lineNumber
         self.content = content
+        self.flags = flags
         // Parse content after initialization
         DispatchQueue.main.async {
             self.parseContentIntoElements()
@@ -113,6 +115,11 @@ class ScriptLine: Identifiable {
             .map { $0.content }
             .joined(separator: " ")
     }
+}
+
+enum ScriptLineFlags: String, CaseIterable, Codable {
+    case stageDirection = "stageDirection"
+    case skip = "skip"
 }
 
 @Model
@@ -262,6 +269,7 @@ extension ScriptLine {
             "id": id.uuidString,
             "lineNumber": lineNumber,
             "content": content,
+            "flags": flags.map { $0.rawValue }, // Convert enum cases to strings
             "elements": elements.map { $0.toDictionary() },
             "cues": cues.map { $0.toDictionary() },
             "isMarked": isMarked,
@@ -351,7 +359,13 @@ extension ScriptLine {
             return nil
         }
         
-        self.init(id: id, lineNumber: lineNumber, content: content)
+        // Parse flags from dictionary
+        var flags: [ScriptLineFlags] = []
+        if let flagsArray = dict["flags"] as? [String] {
+            flags = flagsArray.compactMap { ScriptLineFlags(rawValue: $0) }
+        }
+        
+        self.init(id: id, lineNumber: lineNumber, content: content, flags: flags)
         
         if let elementsArray = dict["elements"] as? [[String: Any]] {
             self.elements = elementsArray.compactMap { LineElement(from: $0) }

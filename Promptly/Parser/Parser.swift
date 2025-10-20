@@ -110,10 +110,19 @@ class PDFScriptParser: ObservableObject {
         
         // Convert to ScriptLine objects
         for (index, lineText) in scriptLines.enumerated() {
+            // Auto-detect flags based on line type
+            let lineType = detectLineType(lineText)
+            var flags: [ScriptLineFlags] = []
+            
+            if lineType == .stageDirection {
+                flags.append(.stageDirection)
+            }
+            
             let scriptLine = ScriptLine(
                 id: UUID(),
                 lineNumber: index + 1,
-                content: lineText
+                content: lineText,
+                flags: flags
             )
             script.lines.append(scriptLine)
         }

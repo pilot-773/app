@@ -38,6 +38,8 @@ struct EditScriptView: View {
     @State private var pendingSectionNotes = ""
     @State private var showingLineConfirmation = false
     @State private var selectedLineForSection: ScriptLine?
+    @State private var showingFlagEditor = false
+    @State private var lineBeingFlagged: ScriptLine?
     @StateObject private var refreshTrigger = RefreshTrigger()
     
     var sortedLines: [ScriptLine] {
@@ -46,6 +48,12 @@ struct EditScriptView: View {
     
     var sortedSections: [ScriptSection] {
         script.sections.sorted { $0.startLineNumber < $1.startLineNumber }
+    }
+    
+    var selectedLinesArray: [ScriptLine] {
+        selectedLines.compactMap { id in
+            sortedLines.first { $0.id == id }
+        }
     }
     
     var body: some View {
@@ -109,6 +117,19 @@ struct EditScriptView: View {
                 script: script
             ) {
                 renumberLines()
+            }
+        }
+        .sheet(isPresented: $showingFlagEditor) {
+            if selectedLines.count == 1, let line = lineBeingFlagged {
+                FlagEditorView(line: line) {
+                    try? modelContext.save()
+                    refreshTrigger.refresh()
+                }
+            } else if selectedLines.count > 1 {
+                BulkFlagEditorView(lines: selectedLinesArray) {
+                    try? modelContext.save()
+                    refreshTrigger.refresh()
+                }
             }
         }
         .sheet(isPresented: $showingAddSection) {
@@ -232,173 +253,72 @@ struct EditScriptView: View {
                         .foregroundColor(.blue)
                     }
                     
+                    Button("Edit Flags") {
+                        // For single line, set the line. For multiple, set to nil for bulk mode
+                        if selectedLines.count == 1,
+                           let lineId = selectedLines.first,
+                           let line = sortedLines.first(where: { $0.id == lineId }) {
+                            lineBeingFlagged = line
+                        } else {
+                            lineBeingFlagged = nil // Bulk mode
+                        }
+                        showingFlagEditor = true
+                    }
+                    .foregroundColor(.purple)
+                    
                     Button("Delete") {
-                        checkForCuesBeforeDelete()
+                        confirmDelete()
                     }
                     .foregroundColor(.red)
                 }
                 
-                Divider()
-                    .frame(height: 20)
-                
-                Button("Add Line") {
-                    showingAddLine = true
-                }
-                
-                Button("Add Section") {
-                    showingAddSection = true
-                }
+                Spacer()
             }
             .padding(.horizontal)
         }
         .padding(.vertical, 8)
-        .background(Color(.secondarySystemBackground))
+        .background(Color(.systemGroupedBackground))
     }
     
     private var scriptContentView: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 8) {
-                    ForEach(groupLinesBySection(), id: \.stableId) { group in
-                        if let section = group.section {
-                            SectionHeaderView(section: section)
-                                .id("section-\(section.id)")
+        ScrollView {
+            LazyVStack(spacing: 8) {
+                ForEach(sortedLines, id: \.id) { line in
+                    EditableScriptLineView(
+                        line: line,
+                        isEditing: isEditing,
+                        isSelected: selectedLines.contains(line.id),
+                        isEditingText: editingLineId == line.id,
+                        isSelectingForSection: isSelectingLineForSection,
+                        editingText: $editingText
+                    ) { selectedLine in
+                        if isSelectingLineForSection {
+                            selectedLineForSection = selectedLine
+                            showingLineConfirmation = true
+                            isSelectingLineForSection = false
+                        } else {
+                            toggleLineSelection(selectedLine)
                         }
-                        
-                        ForEach(group.lines, id: \.id) { line in
-                            scriptLineView(for: line)
-                                .id("line-\(line.id)")
-                        }
-                    }
-                }
-                .padding()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ScrollToSection"))) { notification in
-                if let sectionId = notification.object as? UUID {
-                    withAnimation(.easeInOut(duration: 0.5)) {
-                        proxy.scrollTo("section-\(sectionId)", anchor: .top)
+                    } onStartTextEdit: { lineToEdit in
+                        startEditing(line: lineToEdit)
+                    } onFinishTextEdit: { newText in
+                        finishEditing(newText: newText)
+                    } onInsertAfter: { lineToInsertAfter in
+                        insertAfterLineNumber = lineToInsertAfter.lineNumber
+                        showingAddLine = true
+                    } onEditFlags: { lineToFlag in
+                        lineBeingFlagged = lineToFlag
+                        showingFlagEditor = true
                     }
                 }
             }
+            .padding()
         }
     }
     
-    private func scriptLineView(for line: ScriptLine) -> some View {
-        EditableScriptLineView(
-            line: line,
-            isEditing: isEditing,
-            isSelected: selectedLines.contains(line.id),
-            isEditingText: editingLineId == line.id,
-            isSelectingForSection: isSelectingLineForSection,
-            editingText: $editingText,
-            onToggleSelection: { line in
-                if isSelectingLineForSection {
-                    selectLineForSection(line: line)
-                } else {
-                    toggleLineSelection(line: line)
-                }
-                refreshTrigger.refresh()
-            },
-            onStartTextEdit: { line in
-                startTextEditing(line: line)
-            },
-            onFinishTextEdit: { newText in
-                finishTextEditing(newText: newText)
-                refreshTrigger.refresh()
-            },
-            onInsertAfter: { line in
-                insertAfterLineNumber = line.lineNumber
-                showingAddLine = true
-            }
-        )
-    }
-}
-
-// MARK: - EditScriptView Extension for Alerts and Sheets
-extension EditScriptView {
-    private struct LineGroup {
-        let section: ScriptSection?
-        let lines: [ScriptLine]
-        
-        var stableId: String {
-            if let section = section {
-                return "section-\(section.id)"
-            } else {
-                let lineIds = lines.map { $0.id.uuidString }.joined(separator: "-")
-                return "unsectioned-\(lineIds.hashValue)"
-            }
-        }
-    }
+    // MARK: - Actions
     
-    private func groupLinesBySection() -> [LineGroup] {
-        let currentSortedLines = script.lines.sorted { $0.lineNumber < $1.lineNumber }
-        let currentSortedSections = script.sections.sorted { $0.startLineNumber < $1.startLineNumber }
-        
-        var groups: [LineGroup] = []
-        var lineIndex = 0
-        var sectionIndex = 0
-        
-        while lineIndex < currentSortedLines.count {
-            let currentLine = currentSortedLines[lineIndex]
-            
-            // Check if we're at the start of a section
-            if sectionIndex < currentSortedSections.count &&
-               currentLine.lineNumber >= currentSortedSections[sectionIndex].startLineNumber {
-                
-                let section = currentSortedSections[sectionIndex]
-                var sectionLines: [ScriptLine] = []
-                
-                // Determine section end - either explicit end or start of next section
-                let sectionEnd: Int
-                if let explicitEnd = section.endLineNumber {
-                    sectionEnd = explicitEnd
-                } else if sectionIndex + 1 < currentSortedSections.count {
-                    sectionEnd = currentSortedSections[sectionIndex + 1].startLineNumber - 1
-                } else {
-                    sectionEnd = Int.max // No end, goes to end of script
-                }
-                
-                // Collect all lines for this section
-                while lineIndex < currentSortedLines.count &&
-                      currentSortedLines[lineIndex].lineNumber >= section.startLineNumber &&
-                      currentSortedLines[lineIndex].lineNumber <= sectionEnd {
-                    sectionLines.append(currentSortedLines[lineIndex])
-                    lineIndex += 1
-                }
-                
-                if !sectionLines.isEmpty {
-                    groups.append(LineGroup(section: section, lines: sectionLines))
-                }
-                
-                sectionIndex += 1
-            } else {
-                // Handle unsectioned lines
-                var unsectionedGroup: [ScriptLine] = []
-                
-                // Collect consecutive unsectioned lines
-                while lineIndex < currentSortedLines.count {
-                    let line = currentSortedLines[lineIndex]
-                    
-                    // Stop if we hit the start of a section
-                    if sectionIndex < currentSortedSections.count &&
-                       line.lineNumber >= currentSortedSections[sectionIndex].startLineNumber {
-                        break
-                    }
-                    
-                    unsectionedGroup.append(line)
-                    lineIndex += 1
-                }
-                
-                if !unsectionedGroup.isEmpty {
-                    groups.append(LineGroup(section: nil, lines: unsectionedGroup))
-                }
-            }
-        }
-        
-        return groups
-    }
-    
-    private func toggleLineSelection(line: ScriptLine) {
+    private func toggleLineSelection(_ line: ScriptLine) {
         if selectedLines.contains(line.id) {
             selectedLines.remove(line.id)
         } else {
@@ -406,104 +326,30 @@ extension EditScriptView {
         }
     }
     
-    private func startTextEditing(line: ScriptLine) {
+    private func startEditing(line: ScriptLine) {
         editingLineId = line.id
         editingText = line.content
     }
     
-    private func combineSelectedLines() {
-        let linesToCombine = selectedLines.compactMap { lineId in
-            script.lines.first { $0.id == lineId }
-        }.sorted { $0.lineNumber < $1.lineNumber }
-        
-        guard linesToCombine.count > 1 else { return }
-        
-        let firstLine = linesToCombine[0]
-        let combinedText = linesToCombine.map { $0.content }.joined(separator: " ")
-        
-        var allCues: [Cue] = []
-        for line in linesToCombine {
-            allCues.append(contentsOf: line.cues)
+    private func finishEditing(newText: String) {
+        if let lineId = editingLineId,
+           let line = script.lines.first(where: { $0.id == lineId }) {
+            line.content = newText
+            line.parseContentIntoElements()
+            try? modelContext.save()
         }
-        
-        firstLine.content = combinedText
-        firstLine.parseContentIntoElements()
-        firstLine.cues.append(contentsOf: allCues)
-        
-        for line in linesToCombine.dropFirst() {
-            script.lines.removeAll { $0.id == line.id }
-            modelContext.delete(line)
-        }
-        
-        selectedLines.removeAll()
-        renumberLines()
-        
-        try? modelContext.save()
-        refreshTrigger.refresh()
-    }
-    
-    private func getNextSectionStartLine() -> Int {
-        if let lastSelected = selectedLines.compactMap({ lineId in
-            script.lines.first { $0.id == lineId }
-        }).max(by: { $0.lineNumber < $1.lineNumber }) {
-            return lastSelected.lineNumber
-        }
-        return sortedLines.last?.lineNumber ?? 1
-    }
-    
-    private func selectLineForSection(line: ScriptLine) {
-        selectedLineForSection = line
-        showingLineConfirmation = true
-    }
-    
-    private func createSectionWithSelectedLine() {
-        guard let line = selectedLineForSection else { return }
-        
-        let section = ScriptSection(
-            id: UUID(),
-            title: pendingSectionTitle,
-            type: pendingSectionType,
-            startLineNumber: line.lineNumber
-        )
-        section.notes = pendingSectionNotes
-        
-        script.sections.append(section)
-        
-        isSelectingLineForSection = false
-        selectedLineForSection = nil
-        pendingSectionTitle = ""
-        pendingSectionNotes = ""
-        
-        try? modelContext.save()
-        refreshTrigger.refresh()
-    }
-    
-    private func finishTextEditing(newText: String) {
-        guard let lineId = editingLineId,
-              let line = script.lines.first(where: { $0.id == lineId }) else { return }
-        
-        if line.content != newText {
-            if !line.cues.isEmpty {
-                line.content = newText
-                line.parseContentIntoElements()
-            } else {
-                line.content = newText
-                line.parseContentIntoElements()
-            }
-        }
-        
         editingLineId = nil
         editingText = ""
     }
     
-    private func checkForCuesBeforeDelete() {
-        linesToDelete = selectedLines.compactMap { lineId in
-            script.lines.first { $0.id == lineId }
+    private func confirmDelete() {
+        linesToDelete = selectedLines.compactMap { id in
+            script.lines.first { $0.id == id }
         }
         
-        let linesWithCues = linesToDelete.filter { !$0.cues.isEmpty }
+        let hasLinesWithCues = linesToDelete.contains { !$0.cues.isEmpty }
         
-        if !linesWithCues.isEmpty {
+        if hasLinesWithCues {
             showingCueWarning = true
         } else {
             showingDeleteAlert = true
@@ -511,52 +357,90 @@ extension EditScriptView {
     }
     
     private func deleteSelectedLines() {
-        let lineIdsToDelete = Array(selectedLines)
+        let linesToRemove = selectedLines.compactMap { id in
+            script.lines.first { $0.id == id }
+        }
         
-        for lineId in lineIdsToDelete {
-            if let line = script.lines.first(where: { $0.id == lineId }) {
-                script.lines.removeAll { $0.id == lineId }
-                modelContext.delete(line)
-            }
+        for line in linesToRemove {
+            script.lines.removeAll { $0.id == line.id }
+            modelContext.delete(line)
         }
         
         selectedLines.removeAll()
         linesToDelete.removeAll()
         renumberLines()
+        try? modelContext.save()
+    }
+    
+    private func combineSelectedLines() {
+        let linesToCombine = selectedLines.compactMap { id in
+            script.lines.first { $0.id == id }
+        }.sorted { $0.lineNumber < $1.lineNumber }
+        
+        guard let firstLine = linesToCombine.first else { return }
+        
+        let combinedContent = linesToCombine.map { $0.content }.joined(separator: " ")
+        let allCues = linesToCombine.flatMap { $0.cues }
+        let allFlags = Array(Set(linesToCombine.flatMap { $0.flags }))
+        
+        firstLine.content = combinedContent
+        firstLine.flags = allFlags
+        firstLine.parseContentIntoElements()
+        
+        for cue in allCues {
+            cue.lineId = firstLine.id
+        }
+        
+        let linesToRemove = Array(linesToCombine.dropFirst())
+        for line in linesToRemove {
+            script.lines.removeAll { $0.id == line.id }
+            modelContext.delete(line)
+        }
+        
+        selectedLines.removeAll()
+        renumberLines()
+        try? modelContext.save()
+    }
+    
+    private func createSectionWithSelectedLine() {
+        guard let selectedLine = selectedLineForSection else { return }
+        
+        let newSection = ScriptSection(
+            id: UUID(),
+            title: pendingSectionTitle,
+            type: pendingSectionType,
+            startLineNumber: selectedLine.lineNumber
+        )
+        
+        script.sections.append(newSection)
+        
+        selectedLineForSection = nil
+        isSelectingLineForSection = false
+        pendingSectionTitle = ""
+        pendingSectionNotes = ""
         
         try? modelContext.save()
-        refreshTrigger.refresh()
     }
     
     private func renumberLines() {
-        let sorted = script.lines.sorted { $0.lineNumber < $1.lineNumber }
-        for (index, line) in sorted.enumerated() {
+        let sortedLines = script.lines.sorted { $0.lineNumber < $1.lineNumber }
+        for (index, line) in sortedLines.enumerated() {
             line.lineNumber = index + 1
         }
+        try? modelContext.save()
     }
     
-    private func resetEditingState() {
+    private func saveChanges() {
+        try? modelContext.save()
+        isEditing = false
+        selectedLines.removeAll()
+    }
+    
+    private func cancelEditing() {
         isEditing = false
         selectedLines.removeAll()
         editingLineId = nil
         editingText = ""
-        isSelectingLineForSection = false
-        selectedLineForSection = nil
-        
-        refreshTrigger.refresh()
-    }
-    
-    private func cancelEditing() {
-        resetEditingState()
-    }
-    
-    private func saveChanges() {
-        do {
-            try modelContext.save()
-            resetEditingState()
-        } catch {
-            print("Failed to save: \(error)")
-        }
     }
 }
 
@@ -572,6 +456,7 @@ struct EditableScriptLineView: View {
     let onStartTextEdit: (ScriptLine) -> Void
     let onFinishTextEdit: (String) -> Void
     let onInsertAfter: (ScriptLine) -> Void
+    let onEditFlags: (ScriptLine) -> Void
     
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -613,6 +498,15 @@ struct EditableScriptLineView: View {
                     .disabled(!(isEditing || isSelectingForSection))
                 }
                 
+                // Flag indicators
+                if !line.flags.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(line.flags, id: \.self) { flag in
+                            flagBadge(for: flag)
+                        }
+                    }
+                }
+                
                 if !line.cues.isEmpty {
                     HStack(spacing: 4) {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -628,6 +522,11 @@ struct EditableScriptLineView: View {
             
             if isEditing && isSelected {
                 VStack(spacing: 4) {
+                    Button(action: { onEditFlags(line) }) {
+                        Image(systemName: "flag")
+                            .foregroundColor(.purple)
+                    }
+                    
                     Button(action: { onInsertAfter(line) }) {
                         Image(systemName: "plus.circle")
                             .foregroundColor(.blue)
@@ -646,6 +545,47 @@ struct EditableScriptLineView: View {
             RoundedRectangle(cornerRadius: 6)
                 .stroke(borderColor, lineWidth: borderWidth)
         )
+    }
+    
+    private func flagBadge(for flag: ScriptLineFlags) -> some View {
+        HStack(spacing: 2) {
+            Image(systemName: iconForFlag(flag))
+                .font(.caption2)
+            Text(labelForFlag(flag))
+                .font(.caption2)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(colorForFlag(flag))
+        .foregroundColor(.white)
+        .cornerRadius(4)
+    }
+    
+    private func iconForFlag(_ flag: ScriptLineFlags) -> String {
+        switch flag {
+        case .stageDirection:
+            return "theatermasks"
+        case .skip:
+            return "forward.fill"
+        }
+    }
+    
+    private func labelForFlag(_ flag: ScriptLineFlags) -> String {
+        switch flag {
+        case .stageDirection:
+            return "Stage"
+        case .skip:
+            return "Skip"
+        }
+    }
+    
+    private func colorForFlag(_ flag: ScriptLineFlags) -> Color {
+        switch flag {
+        case .stageDirection:
+            return .purple
+        case .skip:
+            return .red
+        }
     }
     
     private var backgroundColorForLine: Color {
@@ -680,6 +620,268 @@ struct EditableScriptLineView: View {
     }
 }
 
+struct FlagEditorView: View {
+    @Environment(\.dismiss) private var dismiss
+    let line: ScriptLine
+    let onSave: () -> Void
+    
+    @State private var selectedFlags: Set<ScriptLineFlags> = []
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Line \(line.lineNumber)")) {
+                    Text(line.content)
+                        .font(.body)
+                        .foregroundColor(.primary)
+                }
+                
+                Section(header: Text("Flags")) {
+                    ForEach(ScriptLineFlags.allCases, id: \.self) { flag in
+                        HStack {
+                            Button(action: {
+                                toggleFlag(flag)
+                            }) {
+                                HStack {
+                                    Image(systemName: selectedFlags.contains(flag) ? "checkmark.circle.fill" : "circle")
+                                        .foregroundColor(selectedFlags.contains(flag) ? .blue : .gray)
+                                    
+                                    HStack(spacing: 8) {
+                                        Image(systemName: iconForFlag(flag))
+                                            .foregroundColor(colorForFlag(flag))
+                                        Text(labelForFlag(flag))
+                                            .foregroundColor(.primary)
+                                        
+                                        Spacer()
+                                        
+                                        Text(descriptionForFlag(flag))
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Edit Flags")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Save") {
+                        saveFlags()
+                    }
+                }
+            }
+        }
+        .onAppear {
+            selectedFlags = Set(line.flags)
+        }
+    }
+    
+    private func toggleFlag(_ flag: ScriptLineFlags) {
+        if selectedFlags.contains(flag) {
+            selectedFlags.remove(flag)
+        } else {
+            selectedFlags.insert(flag)
+        }
+    }
+    
+    private func saveFlags() {
+        line.flags = Array(selectedFlags)
+        onSave()
+        dismiss()
+    }
+    
+    private func iconForFlag(_ flag: ScriptLineFlags) -> String {
+        switch flag {
+        case .stageDirection:
+            return "theatermasks"
+        case .skip:
+            return "forward.fill"
+        }
+    }
+    
+    private func labelForFlag(_ flag: ScriptLineFlags) -> String {
+        switch flag {
+        case .stageDirection:
+            return "Stage Direction"
+        case .skip:
+            return "Skip Line"
+        }
+    }
+    
+    private func colorForFlag(_ flag: ScriptLineFlags) -> Color {
+        switch flag {
+        case .stageDirection:
+            return .purple
+        case .skip:
+            return .red
+        }
+    }
+    
+    private func descriptionForFlag(_ flag: ScriptLineFlags) -> String {
+        switch flag {
+        case .stageDirection:
+            return "Mark as stage direction"
+        case .skip:
+            return "Skip during performance"
+        }
+    }
+}
+
+struct BulkFlagEditorView: View {
+    @Environment(\.dismiss) private var dismiss
+    let lines: [ScriptLine]
+    let onSave: () -> Void
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Selected Lines (\(lines.count))")) {
+                    ForEach(lines.prefix(5), id: \.id) { line in
+                        Text("Line \(line.lineNumber): \(line.content.prefix(50))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    if lines.count > 5 {
+                        Text("... and \(lines.count - 5) more lines")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Section(header: Text("Bulk Flag Operations"), footer: Text("Toggle removes flags from lines that have them, adds to lines that don't")) {
+                    ForEach(ScriptLineFlags.allCases, id: \.self) { flag in
+                        HStack {
+                            Button(action: {
+                                toggleBulkFlag(flag)
+                            }) {
+                                HStack {
+                                    let flagStatus = getBulkFlagStatus(for: flag)
+                                    Image(systemName: flagStatus.icon)
+                                        .foregroundColor(flagStatus.color)
+                                    
+                                    HStack(spacing: 8) {
+                                        Image(systemName: iconForFlag(flag))
+                                            .foregroundColor(colorForFlag(flag))
+                                        
+                                        VStack(alignment: .leading) {
+                                            Text(labelForFlag(flag))
+                                                .foregroundColor(.primary)
+                                            Text(flagStatus.description)
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        
+                                        Spacer()
+                                        
+                                        Text(descriptionForFlag(flag))
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Bulk Edit Flags")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+    
+    private func getBulkFlagStatus(for flag: ScriptLineFlags) -> (icon: String, color: Color, description: String) {
+        let linesWithFlag = lines.filter { $0.flags.contains(flag) }
+        let linesWithoutFlag = lines.filter { !$0.flags.contains(flag) }
+        
+        if linesWithFlag.count == lines.count {
+            return ("checkmark.circle.fill", .green, "All lines have this flag")
+        } else if linesWithFlag.isEmpty {
+            return ("circle", .gray, "No lines have this flag")
+        } else {
+            return ("minus.circle.fill", .orange, "\(linesWithFlag.count) of \(lines.count) lines have this flag")
+        }
+    }
+    
+    private func toggleBulkFlag(_ flag: ScriptLineFlags) {
+        let linesWithFlag = lines.filter { $0.flags.contains(flag) }
+        
+        if linesWithFlag.isEmpty {
+            // No lines have the flag - add to all
+            for line in lines {
+                if !line.flags.contains(flag) {
+                    line.flags.append(flag)
+                }
+            }
+        } else {
+            // Some lines have the flag - remove from all that have it
+            for line in linesWithFlag {
+                line.flags.removeAll { $0 == flag }
+            }
+        }
+        
+        onSave()
+    }
+    
+    private func iconForFlag(_ flag: ScriptLineFlags) -> String {
+        switch flag {
+        case .stageDirection:
+            return "theatermasks"
+        case .skip:
+            return "forward.fill"
+        }
+    }
+    
+    private func labelForFlag(_ flag: ScriptLineFlags) -> String {
+        switch flag {
+        case .stageDirection:
+            return "Stage Direction"
+        case .skip:
+            return "Skip Line"
+        }
+    }
+    
+    private func colorForFlag(_ flag: ScriptLineFlags) -> Color {
+        switch flag {
+        case .stageDirection:
+            return .purple
+        case .skip:
+            return .red
+        }
+    }
+    
+    private func descriptionForFlag(_ flag: ScriptLineFlags) -> String {
+        switch flag {
+        case .stageDirection:
+            return "Mark as stage direction"
+        case .skip:
+            return "Skip during performance"
+        }
+    }
+}
+
 struct AddLineView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -690,6 +892,7 @@ struct AddLineView: View {
     
     @State private var newLineText = ""
     @State private var lineType: LineType = .dialogue
+    @State private var selectedFlags: Set<ScriptLineFlags> = []
     
     enum LineType: String, CaseIterable {
         case dialogue = "Dialogue"
@@ -714,6 +917,15 @@ struct AddLineView: View {
             case .sceneDescription: return "]"
             }
         }
+        
+        var suggestedFlags: [ScriptLineFlags] {
+            switch self {
+            case .stageDirection:
+                return [.stageDirection]
+            default:
+                return []
+            }
+        }
     }
     
     var body: some View {
@@ -731,13 +943,61 @@ struct AddLineView: View {
                         }
                     }
                     .pickerStyle(SegmentedPickerStyle())
+                    .onChange(of: lineType) { _, newType in
+                        // Auto-select flags based on line type
+                        selectedFlags = Set(newType.suggestedFlags)
+                    }
+                }
+                
+                Section(header: Text("Flags")) {
+                    ForEach(ScriptLineFlags.allCases, id: \.self) { flag in
+                        HStack {
+                            Button(action: {
+                                toggleFlag(flag)
+                            }) {
+                                HStack {
+                                    Image(systemName: selectedFlags.contains(flag) ? "checkmark.circle.fill" : "circle")
+                                        .foregroundColor(selectedFlags.contains(flag) ? .blue : .gray)
+                                    
+                                    HStack(spacing: 8) {
+                                        Image(systemName: iconForFlag(flag))
+                                            .foregroundColor(colorForFlag(flag))
+                                        Text(labelForFlag(flag))
+                                            .foregroundColor(.primary)
+                                    }
+                                    
+                                    Spacer()
+                                }
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                    }
                 }
                 
                 Section(header: Text("Preview")) {
-                    Text(lineType.prefix + newLineText + lineType.suffix)
-                        .font(.body)
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(lineType.prefix + newLineText + lineType.suffix)
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                        
+                        if !selectedFlags.isEmpty {
+                            HStack {
+                                ForEach(Array(selectedFlags), id: \.self) { flag in
+                                    HStack(spacing: 2) {
+                                        Image(systemName: iconForFlag(flag))
+                                            .font(.caption2)
+                                        Text(labelForFlag(flag))
+                                            .font(.caption2)
+                                    }
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(colorForFlag(flag))
+                                    .foregroundColor(.white)
+                                    .cornerRadius(4)
+                                }
+                            }
+                        }
+                    }
                 }
                 
                 if let insertAfter = insertAfterLineNumber {
@@ -765,6 +1025,17 @@ struct AddLineView: View {
                 }
             }
         }
+        .onAppear {
+            selectedFlags = Set(lineType.suggestedFlags)
+        }
+    }
+    
+    private func toggleFlag(_ flag: ScriptLineFlags) {
+        if selectedFlags.contains(flag) {
+            selectedFlags.remove(flag)
+        } else {
+            selectedFlags.insert(flag)
+        }
     }
     
     private func addLine() {
@@ -778,7 +1049,8 @@ struct AddLineView: View {
         let newLine = ScriptLine(
             id: UUID(),
             lineNumber: newLineNumber,
-            content: formattedText
+            content: formattedText,
+            flags: Array(selectedFlags)
         )
         
         script.lines.append(newLine)
@@ -786,5 +1058,32 @@ struct AddLineView: View {
         try? modelContext.save()
         onComplete()
         dismiss()
+    }
+    
+    private func iconForFlag(_ flag: ScriptLineFlags) -> String {
+        switch flag {
+        case .stageDirection:
+            return "theatermasks"
+        case .skip:
+            return "forward.fill"
+        }
+    }
+    
+    private func labelForFlag(_ flag: ScriptLineFlags) -> String {
+        switch flag {
+        case .stageDirection:
+            return "Stage"
+        case .skip:
+            return "Skip"
+        }
+    }
+    
+    private func colorForFlag(_ flag: ScriptLineFlags) -> Color {
+        switch flag {
+        case .stageDirection:
+            return .purple
+        case .skip:
+            return .red
+        }
     }
 }

@@ -13,6 +13,16 @@ struct DSMScriptLineView: View {
     let onLineTap: () -> Void
     let calledCues: Set<UUID>
     
+    private let isStageDirection: Bool
+    
+    init(line: ScriptLine, isCurrent: Bool, onLineTap: @escaping () -> Void, calledCues: Set<UUID>) {
+        self.line = line
+        self.isCurrent = isCurrent
+        self.onLineTap = onLineTap
+        self.calledCues = calledCues
+        self.isStageDirection = line.flags.contains(.stageDirection)
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button(action: onLineTap) {
@@ -62,6 +72,7 @@ struct DSMScriptLineView: View {
         
         return Text(buildLineWithCues(words: words, cuesByIndex: cuesByIndex))
             .font(.body)
+            .italic(isStageDirection)
             .foregroundColor(isCurrent ? .black : .primary)
     }
 
@@ -84,6 +95,10 @@ struct DSMScriptLineView: View {
             }
             
             var wordAttr = AttributedString(word + " ")
+            
+            if isStageDirection {
+                wordAttr.inlinePresentationIntent = .emphasized
+            }
             result += wordAttr
         }
         
