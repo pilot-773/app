@@ -1678,8 +1678,28 @@ extension DSMPerformanceView {
     
     private func moveToLine(_ lineNumber: Int) {
         guard lineNumber >= 1 && lineNumber <= sortedLinesCache.count else { return }
-        currentLineNumber = lineNumber
-        self.mqttManager.sendData(to: "shows/\(self.uuidOfShow)/line", message: String(lineNumber))
+        
+        var targetLineNumber = lineNumber
+        let isMovingForward = targetLineNumber > currentLineNumber
+        
+        while targetLineNumber >= 1 && targetLineNumber <= sortedLinesCache.count {
+            let targetLine = sortedLinesCache[targetLineNumber - 1]
+            
+            if targetLine.flags.contains(.skip) {
+                if isMovingForward {
+                    targetLineNumber += 1
+                } else {
+                    targetLineNumber -= 1
+                }
+            } else {
+                break
+            }
+        }
+        
+        targetLineNumber = max(1, min(targetLineNumber, sortedLinesCache.count))
+        
+        currentLineNumber = targetLineNumber
+        self.mqttManager.sendData(to: "shows/\(self.uuidOfShow)/line", message: String(targetLineNumber))
     }
     
     private func logCall(_ message: String, type: CallLogEntry.CallType = .note) {
