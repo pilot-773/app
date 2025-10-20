@@ -4,6 +4,7 @@ import Foundation
 import Network
 import Darwin
 import Combine
+import MIDIKitIO
 
 struct DSMPerformanceView: View {
     @Environment(\.modelContext) private var modelContext
@@ -16,16 +17,23 @@ struct DSMPerformanceView: View {
     @State private var showingEndConfirmation = false
     @State private var showingStopAlert = false
     @State private var stopReason = ""
+    @State private var goToLine = ""
+    @State private var showingGoToLineAlert = false
     @State private var callsLog: [CallLogEntry] = []
     @State private var currentLineNumber = 1
+    @State private var scrollToLineNumber: Int? = 1
     @State private var allCues: [Cue] = []
     @State private var calledCues: Set<UUID> = []
     @State private var hiddenCues: Set<UUID> = []
     @State private var cueHideTimers: [UUID: Timer] = [:]
     @State private var showingDetails = false
     @State private var showingSettings = false
+    @State private var showingResetScrollButton = false
+    @State private var showingRemoteSettingsAlert: Bool = false
     @State private var showingBluetoothSettings = false
+    @State private var showingGoToSectionSheet = false
     @State private var keepDisplayAwake = true
+    @State private var showAlertWhenEndingShowWithPause = false
     @State private var scrollToChangesActiveLine = false
     @State private var currentTime = Date()
     @State private var stopTime: Date?
@@ -33,21 +41,21 @@ struct DSMPerformanceView: View {
     @State private var showingCueAlert = false
     @State private var cueAlertTimer: Timer?
     @State private var uuidOfShow: String = ""
+    @State private var showingMIDISettings = false
     @FocusState private var isViewFocused: Bool
     @StateObject private var bluetoothManager = PromptlyBluetoothManager()
     @StateObject private var mqttManager = MQTTManager()
     @StateObject private var jsonServer = JSONServer(port: 8080)
 
     
+    @Environment(ObservableMIDIManager.self) private var midiManager
+    @Environment(MIDIHelper.self) private var midiHelper
+    
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
     private var script: Script? {
         performance.show?.script
     }
-    
-    // private var sortedLinesCache: [ScriptLine] {
-    //     script?.lines.sorted { $0.lineNumber < $1.lineNumber } ?? []
-    // }
     
     @State private var sortedLinesCache: [ScriptLine] = []
     
@@ -126,8 +134,49 @@ struct DSMPerformanceView: View {
     
     var body: some View {
         mainContentView
-            .applyDSMModifiers(
+            .sheet(isPresented: $showingMIDISettings) {
+                MIDIConfigurationView(midiHelper: midiHelper)
+            }
+            .alert("Which type?", isPresented: self.$showingRemoteSettingsAlert) {
+                Button("Cancel", role: .cancel) {}
+                Button("Bluetooth") {
+                    self.showingBluetoothSettings = true
+                }
+                Button("MIDI") {
+                    self.showingMIDISettings = true
+                }
+            }
+            .alert("Go To Line (set active)", isPresented: self.$showingGoToLineAlert) {
+                TextField("Line", text: self.$goToLine).keyboardType(.numberPad)
+                Button("Cancel", role: .cancel) { }
+                Button("Go To", role: .destructive) {
+                    self.moveToLine(Int(self.goToLine) ?? 0)
+                    self.goToLine = ""
+                }
+            }
+            .applyDSMCore(
                 isViewFocused: $isViewFocused,
+                onAppear: setupView,
+                onDisappear: cleanupView,
+                timer: timer,
+                currentTime: $currentTime
+            )
+            .applyDSMKeyboard(
+                sortedLinesCache: sortedLinesCache,
+                currentLineNumber: currentLineNumber,
+                onLineMove: moveToLine
+            )
+            .applyDSMObservers(
+                allCues: allCues,
+                hiddenCues: hiddenCues,
+                sortedLinesCache: sortedLinesCache,
+                script: script,
+                currentState: $currentState,
+                onCacheUpdate: updateCuesCache,
+                onScriptChange: handleScriptChange,
+                onStateChange: handleStateChange
+            )
+            .applyDSMAlerts(
                 showingStopAlert: $showingStopAlert,
                 showingEndConfirmation: $showingEndConfirmation,
                 showingBluetoothSettings: $showingBluetoothSettings,
@@ -145,9 +194,8 @@ struct DSMPerformanceView: View {
                 isShowRunning: $isShowRunning,
                 canMakeQuickCalls: canMakeQuickCalls,
                 bluetoothManager: bluetoothManager,
-                onAppear: setupView,
-                onDisappear: cleanupView,
-                onStateChange: handleStateChange,
+                showAlertWhenEndingShowWithPause: $showAlertWhenEndingShowWithPause,
+                endPerformanceWithoutEnd: endPerformanceWithoutEnd,
                 onStartShow: startShow,
                 onStopShow: { showingStopAlert = true },
                 onEndShow: { showingEndConfirmation = true },
@@ -155,16 +203,8 @@ struct DSMPerformanceView: View {
                 onStartNextAct: startNextAct,
                 onEmergencyStop: emergencyStop,
                 onEndPerformance: endPerformance,
-                onCacheUpdate: updateCuesCache,
-                onScriptChange: handleScriptChange,
-                onLineMove: moveToLine,
-                onCueExecute: executeNextCue,
-                timer: timer,
-                currentTime: $currentTime,
-                allCues: allCues,
-                hiddenCues: hiddenCues,
-                sortedLinesCache: sortedLinesCache,
-                script: script
+                goToLine: goToLine,
+                showingGoToSectionSheet: $showingGoToSectionSheet
             )
     }
 
@@ -216,6 +256,7 @@ struct DSMPerformanceView: View {
 
     private func setupView() {
         isViewFocused = true
+        
         if keepDisplayAwake {
             UIApplication.shared.isIdleTimerDisabled = true
         }
@@ -244,25 +285,35 @@ struct DSMPerformanceView: View {
             )
             
             let showUUID = show.id.uuidString
-            print("🚀 Setting uuidOfShow to: '\(showUUID)'")
+            print("🎭 Setting uuidOfShow to: '\(showUUID)'")
             uuidOfShow = showUUID
             
-            print("🚀 Sending initial line with UUID: '\(showUUID)'")
+            print("🎭 Sending initial line with UUID: '\(showUUID)'")
             mqttManager.sendData(to: "shows/\(showUUID)/line", message: "1")
         }
         
+        // Existing Bluetooth setup
         bluetoothManager.onButtonPress = { value in
-            if value == "1" {
-                withAnimation(.easeOut(duration: 0.1)) {
-                    moveToLine(currentLineNumber + 1)
-                }
-            } else if value == "0" {
-                withAnimation(.easeOut(duration: 0.1)) {
-                    moveToLine(currentLineNumber - 1)
-                }
-            } else if value == "2" {
-                executeNextCue()
+            handleRemoteButtonPress(value)
+        }
+        
+        // NEW: MIDI setup using the same handler
+        midiHelper.onButtonPress = { value in
+            handleRemoteButtonPress(value)
+        }
+    }
+    
+    private func handleRemoteButtonPress(_ value: String) {
+        if value == "1" {
+            withAnimation(.easeOut(duration: 0.1)) {
+                moveToLine(currentLineNumber + 1)
             }
+        } else if value == "0" {
+            withAnimation(.easeOut(duration: 0.1)) {
+                moveToLine(currentLineNumber - 1)
+            }
+        } else if value == "2" {
+            executeNextCue()
         }
     }
 
@@ -352,23 +403,41 @@ struct DSMPerformanceView: View {
             }
             
             HStack(spacing: 8) {
-                Button(action: {
-                    showingBluetoothSettings = true
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: bluetoothManager.isConnected ? "antenna.radiowaves.left.and.right" : "antenna.radiowaves.left.and.right.slash")
-                            .foregroundColor(bluetoothManager.isConnected ? .blue : .secondary)
-                        if bluetoothManager.isConnected {
-                            Text("Remote")
-                                .font(.caption)
+                if self.showingResetScrollButton {
+                    Button {
+                        self.scrollToLineNumber = self.currentLineNumber
+                        self.showingResetScrollButton = false
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            self.scrollToLineNumber = nil
                         }
+                    } label: {
+                        Image(systemName: "chevron.up")
                     }
+                    .buttonStyle(.bordered)
                 }
-                .buttonStyle(.bordered)
                 
-                Button("Settings") {
-                    showingSettings = true
-                }
+                Menu(content: {
+                    Button(action: {
+                        showingRemoteSettingsAlert = true
+                    }) {
+                        Label(
+                            "Remotes",
+                            systemImage: "antenna.radiowaves.left.and.right"
+                        )
+                    }
+                    
+                    Button {
+                        showingSettings = true
+                    } label: {
+                        Label(
+                            "Settings",
+                            systemImage: "gear"
+                        )
+                    }
+                }, label: {
+                    Image(systemName: "ellipsis.circle")
+                })
                 .buttonStyle(.bordered)
                 
                 Button("Details") {
@@ -376,8 +445,9 @@ struct DSMPerformanceView: View {
                 }
                 .buttonStyle(.bordered)
                 
+                // Stop / start button
                 if isShowRunning {
-                    Button("STOP", role: .destructive) {
+                    Button("E STOP", role: .destructive) {
                         showingStopAlert = true
                     }
                     .buttonStyle(.borderedProminent)
@@ -419,7 +489,7 @@ struct DSMPerformanceView: View {
                     
                     HStack(spacing: 8) {
                         Button("Go to Line") {
-                            
+                            self.showingGoToLineAlert = true
                         }
                         .font(.caption)
                         .padding(.horizontal, 8)
@@ -508,7 +578,6 @@ struct DSMPerformanceView: View {
     
     private var scriptContentView: some View {
         let showUUID = self.uuidOfShow
-        print("🔍 scriptContentView rendering - uuidOfShow: '\(showUUID)'")
         
         return ScrollViewReader { proxy in
             ScrollView {
@@ -518,10 +587,6 @@ struct DSMPerformanceView: View {
                             line: line,
                             isCurrent: line.lineNumber == currentLineNumber,
                             onLineTap: {
-                                print("🎯 Tapped line \(line.lineNumber)")
-                                print("🔍 showUUID in closure: '\(showUUID)'")
-                                print("🔍 self.uuidOfShow in closure: '\(self.uuidOfShow)'")
-                                
                                 currentLineNumber = line.lineNumber
                                 self.mqttManager.sendData(to: "shows/\(showUUID)/line", message: "\(line.lineNumber)")
                             },
@@ -536,6 +601,24 @@ struct DSMPerformanceView: View {
             .background(Color(.systemBackground))
             .onChange(of: currentLineNumber) { _, newValue in
                 proxy.scrollTo("line-\(newValue)", anchor: .center)
+            }
+            .onChange(of: scrollToLineNumber) { _, newValue in
+                print("got value (new) to scroll to: \(String(describing: newValue))")
+                if let value = newValue {
+                    proxy.scrollTo("line-\(value)", anchor: .center)
+                    print("scrolled")
+                    if value != currentLineNumber {
+                        self.showingResetScrollButton = true
+                        print("button reset")
+                    }
+                }
+            }
+            .onScrollPhaseChange { a, b in
+                if a.isScrolling {
+                    withAnimation(.interactiveSpring) {
+                        self.showingResetScrollButton = true
+                    }
+                }
             }
         }
     }
@@ -809,90 +892,6 @@ struct DSMSectionBadge: View {
     }
 }
 
-struct DSMScriptLineView: View {
-    let line: ScriptLine
-    let isCurrent: Bool
-    let onLineTap: () -> Void
-    let calledCues: Set<UUID>
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Button(action: onLineTap) {
-                HStack(alignment: .top, spacing: 12) {
-                    Text("\(line.lineNumber)")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(isCurrent ? .black : .secondary)
-                        .frame(width: 30, alignment: .trailing)
-                    
-                    VStack(alignment: .leading, spacing: 6) {
-                        scriptLineWithCues
-                        scriptContentWithCueArrows
-                    }
-                }
-                .padding(.vertical, 8)
-                .padding(.horizontal, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(isCurrent ? Color.yellow : Color.clear)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(isCurrent ? Color.orange : Color.clear, lineWidth: 2)
-                )
-            }
-            .buttonStyle(PlainButtonStyle())
-        }
-    }
-    
-    private var scriptLineWithCues: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if !line.cues.isEmpty {
-                HStack(spacing: 4) {
-                    ForEach(line.cues) { cue in
-                        CueTagView(cue: cue, isCalled: calledCues.contains(cue.id))
-                    }
-                    Spacer()
-                }
-            }
-        }
-    }
-    
-    private var scriptContentWithCueArrows: some View {
-        let cuesByIndex = Dictionary(grouping: line.cues) { $0.position.elementIndex }
-        let words = line.content.split(separator: " ", omittingEmptySubsequences: false)
-        
-        return Text(buildLineWithCues(words: words, cuesByIndex: cuesByIndex))
-            .font(.body)
-            .foregroundColor(isCurrent ? .black : .primary)
-    }
-
-    private func buildLineWithCues(words: [Substring], cuesByIndex: [Int: [Cue]]) -> AttributedString {
-        var result = AttributedString()
-        
-        for (i, word) in words.enumerated() {
-            if let cues = cuesByIndex[i] {
-                for cue in cues {
-                    var label = AttributedString("⬇︎ \(cue.label) ")
-
-                    label.foregroundColor = calledCues.contains(cue.id) ? .secondary : Color(hex: cue.type.color)
-                    label.inlinePresentationIntent = .emphasized
-
-                    if calledCues.contains(cue.id) {
-                        label.strikethroughStyle = Text.LineStyle.single
-                    }
-                    result += label
-                }
-            }
-            
-            var wordAttr = AttributedString(word + " ")
-            result += wordAttr
-        }
-        
-        return result
-    }
-}
-
 struct DSMFlowLayout: Layout {
     var spacing: CGFloat = 8
     
@@ -945,33 +944,7 @@ struct DSMFlowResult {
     }
 }
 
-struct CueTagView: View {
-    let cue: Cue
-    let isCalled: Bool
-    
-    var body: some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(Color(hex: cue.type.color))
-                .frame(width: 8, height: 8)
-            
-            Text(cue.label)
-                .font(.headline)
-                .fontWeight(.semibold)
-                .lineLimit(1)
-                .foregroundColor(isCalled ? .secondary : .primary)
-                .strikethrough(isCalled)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color(hex: cue.type.color).opacity(isCalled ? 0.1 : 0.2))
-        .cornerRadius(8)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(isCalled ? Color.gray : Color(hex: cue.type.color), lineWidth: 2)
-        )
-    }
-}
+
 
 struct DSMSettingsView: View {
     @Binding var keepDisplayAwake: Bool
@@ -1103,6 +1076,7 @@ struct DSMDetailsView: View {
     @Binding var callsLog: [CallLogEntry]
     @Binding var currentState: PerformanceState
     @Binding var isShowRunning: Bool
+    @Binding var showAlertWhenEndingShowWithPause: Bool
     let canMakeQuickCalls: Bool
     let onStartShow: () -> Void
     let onStopShow: () -> Void
@@ -1355,6 +1329,12 @@ struct DSMDetailsView: View {
             .navigationTitle("Performance Details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Pause and End") {
+                        self.showAlertWhenEndingShowWithPause = true
+                    }
+                }
+                
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
                         dismiss()
@@ -1516,6 +1496,17 @@ extension DSMPerformanceView {
         // Dismiss the DSM view after a brief delay to show the completion state
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             self.mqttManager.removeShow(id: self.uuidOfShow)
+            self.jsonServer.stop()
+            dismiss()
+        }
+    }
+    
+    private func endPerformanceWithoutEnd() {
+        isShowRunning = false
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            self.mqttManager.removeShow(id: self.uuidOfShow)
+            self.jsonServer.stop()
             dismiss()
         }
     }
@@ -1572,6 +1563,8 @@ extension DSMPerformanceView {
         if let line = sortedLinesCache.first(where: { $0.id == cue.lineId }) {
             if scrollToChangesActiveLine {
                 currentLineNumber = line.lineNumber
+            } else {
+                scrollToLineNumber = line.lineNumber
             }
         }
     }
@@ -1693,76 +1686,73 @@ extension DSMPerformanceView {
         let entry = CallLogEntry(timestamp: Date(), message: message, type: type)
         callsLog.append(entry)
     }
-}
-
-struct CallLogEntry: Identifiable {
-    let id = UUID()
-    let timestamp: Date
-    let message: String
-    let type: CallType
     
-    enum CallType {
-        case call, action, emergency, note
-        
-        var color: Color {
-            switch self {
-            case .call: return .blue
-            case .action: return .green
-            case .emergency: return .red
-            case .note: return .orange
-            }
-        }
+    func goToLine(_ lineNumber: Int) {
+        moveToLine(lineNumber)
     }
 }
-
-extension PerformanceState {
-    var displayName: String {
-        switch self {
-        case .preShow: return "Pre-Show"
-        case .houseOpen: return "House Open"
-        case .clearance: return "Stage Clear"
-        case .inProgress(let act): return "Act \(act) Running"
-        case .interval(let interval): return "Interval \(interval)"
-        case .completed: return "Show Complete"
-        case .stopped: return "Show Stopped"
-        }
-    }
-    
-    var color: Color {
-        switch self {
-        case .preShow: return .gray
-        case .houseOpen: return .blue
-        case .clearance: return .orange
-        case .inProgress: return .green
-        case .interval: return .purple
-        case .completed: return .green
-        case .stopped: return .red
-        }
-    }
-    
-    var actNumber: Int? {
-        switch self {
-        case .inProgress(let actNumber): return actNumber
-        default: return nil
-        }
-    }
-}
-
-extension CueType {
-    var isStandby: Bool {
-        switch self {
-        case .lightingStandby, .soundStandby, .flyStandby, .automationStandby:
-            return true
-        default:
-            return false
-        }
-    }
-}
-
 
 extension View {
-    func applyDSMModifiers(
+    // Core navigation and appearance
+    func applyDSMCore(
         isViewFocused: FocusState<Bool>.Binding,
+        onAppear: @escaping () -> Void,
+        onDisappear: @escaping () -> Void,
+        timer: Publishers.Autoconnect<Timer.TimerPublisher>,
+        currentTime: Binding<Date>
+    ) -> some View {
+        self
+            .navigationBarHidden(true)
+            .preferredColorScheme(.dark)
+            .focusable()
+            .focused(isViewFocused)
+            .onAppear(perform: onAppear)
+            .onDisappear(perform: onDisappear)
+            .onReceive(timer) { _ in currentTime.wrappedValue = Date() }
+    }
+    
+    // Keyboard navigation
+    func applyDSMKeyboard(
+        sortedLinesCache: [ScriptLine],
+        currentLineNumber: Int,
+        onLineMove: @escaping (Int) -> Void
+    ) -> some View {
+        self
+            .onKeyPress(.downArrow) {
+                let next = sortedLinesCache.first(where: { $0.lineNumber > currentLineNumber })?.lineNumber
+                let fallback = sortedLinesCache.last?.lineNumber ?? 1
+                withAnimation(.easeOut(duration: 0.1)) { onLineMove(next ?? fallback) }
+                return .handled
+            }
+            .onKeyPress(.upArrow) {
+                let prev = sortedLinesCache.last(where: { $0.lineNumber < currentLineNumber })?.lineNumber
+                let fallback = sortedLinesCache.first?.lineNumber ?? 1
+                withAnimation(.easeOut(duration: 0.1)) { onLineMove(prev ?? fallback) }
+                return .handled
+            }
+    }
+    
+    // Data change observers
+    func applyDSMObservers(
+        allCues: [Cue],
+        hiddenCues: Set<UUID>,
+        sortedLinesCache: [ScriptLine],
+        script: Script?,
+        currentState: Binding<PerformanceState>,
+        onCacheUpdate: @escaping () -> Void,
+        onScriptChange: @escaping () -> Void,
+        onStateChange: @escaping () -> Void
+    ) -> some View {
+        self
+            .onChange(of: allCues) { _, _ in onCacheUpdate() }
+            .onChange(of: hiddenCues) { _, _ in onCacheUpdate() }
+            .onChange(of: sortedLinesCache) { _, _ in onCacheUpdate() }
+            .onChange(of: script) { _, _ in onScriptChange() }
+            .onChange(of: currentState.wrappedValue) { _, _ in onStateChange() }
+    }
+    
+    // Alerts and modals
+    func applyDSMAlerts(
         showingStopAlert: Binding<Bool>,
         showingEndConfirmation: Binding<Bool>,
         showingBluetoothSettings: Binding<Bool>,
@@ -1780,9 +1770,8 @@ extension View {
         isShowRunning: Binding<Bool>,
         canMakeQuickCalls: Bool,
         bluetoothManager: PromptlyBluetoothManager,
-        onAppear: @escaping () -> Void,
-        onDisappear: @escaping () -> Void,
-        onStateChange: @escaping () -> Void,
+        showAlertWhenEndingShowWithPause: Binding<Bool>,
+        endPerformanceWithoutEnd: @escaping () -> Void,
         onStartShow: @escaping () -> Void,
         onStopShow: @escaping () -> Void,
         onEndShow: @escaping () -> Void,
@@ -1790,44 +1779,10 @@ extension View {
         onStartNextAct: @escaping () -> Void,
         onEmergencyStop: @escaping () -> Void,
         onEndPerformance: @escaping () -> Void,
-        onCacheUpdate: @escaping () -> Void,
-        onScriptChange: @escaping () -> Void,
-        onLineMove: @escaping (Int) -> Void,
-        onCueExecute: @escaping () -> Void,
-        timer: Publishers.Autoconnect<Timer.TimerPublisher>,
-        currentTime: Binding<Date>,
-        allCues: [Cue],
-        hiddenCues: Set<UUID>,
-        sortedLinesCache: [ScriptLine],
-        script: Script?
+        goToLine: @escaping (Int) -> Void,
+        showingGoToSectionSheet: Binding<Bool>
     ) -> some View {
         self
-            .navigationBarHidden(true)
-            .preferredColorScheme(.dark)
-            .focusable()
-            .focused(isViewFocused)
-            .onKeyPress(.downArrow) {
-                withAnimation(.easeOut(duration: 0.1)) {
-                    onLineMove(sortedLinesCache.first(where: { $0.lineNumber > sortedLinesCache.first?.lineNumber ?? 0 })?.lineNumber ?? 1)
-                }
-                return .handled
-            }
-            .onKeyPress(.upArrow) {
-                withAnimation(.easeOut(duration: 0.1)) {
-                    onLineMove(sortedLinesCache.first(where: { $0.lineNumber < sortedLinesCache.first?.lineNumber ?? 0 })?.lineNumber ?? 1)
-                }
-                return .handled
-            }
-            .onAppear(perform: onAppear)
-            .onChange(of: allCues) { _, _ in onCacheUpdate() }
-            .onChange(of: hiddenCues) { _, _ in onCacheUpdate() }
-            .onChange(of: sortedLinesCache) { _, _ in onCacheUpdate() }
-            .onChange(of: script) { _, _ in onScriptChange() }
-            .onChange(of: currentState.wrappedValue) { _, _ in onStateChange() }
-            .onDisappear(perform: onDisappear)
-            .onReceive(timer) { _ in
-                currentTime.wrappedValue = Date()
-            }
             .alert("Emergency Stop", isPresented: showingStopAlert) {
                 TextField("Reason", text: stopReason)
                 Button("Cancel", role: .cancel) { }
@@ -1841,10 +1796,7 @@ extension View {
                 PromptlyBluetoothSettingsView(bluetoothManager: bluetoothManager)
             }
             .sheet(isPresented: showingSettings) {
-                DSMSettingsView(
-                    keepDisplayAwake: keepDisplayAwake,
-                    scrollToChangesActiveLine: scrollToChangesActiveLine
-                )
+                DSMSettingsView(keepDisplayAwake: keepDisplayAwake, scrollToChangesActiveLine: scrollToChangesActiveLine)
             }
             .sheet(isPresented: showingDetails) {
                 DSMDetailsView(
@@ -1855,6 +1807,7 @@ extension View {
                     callsLog: callsLog,
                     currentState: currentState,
                     isShowRunning: isShowRunning,
+                    showAlertWhenEndingShowWithPause: showAlertWhenEndingShowWithPause,
                     canMakeQuickCalls: canMakeQuickCalls,
                     onStartShow: onStartShow,
                     onStopShow: onStopShow,
@@ -1863,5 +1816,107 @@ extension View {
                     onStartNextAct: onStartNextAct
                 )
             }
+            .alert("You are ending a show with pause - no performace reports will be generated", isPresented: showAlertWhenEndingShowWithPause) {
+                Button("Cancel", role: .cancel) { }
+                Button("Pause and End show", action: endPerformanceWithoutEnd)
+            }
+            .sheet(isPresented: showingGoToSectionSheet) {
+                DSMGoToSection(performance: performance, goToLine: goToLine)
+            }
+    }
+}
+
+struct DSMGoToSection: View {
+    let performance: Performance
+    var goToLine: (Int) -> Void
+    
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        List {
+            Group {
+                if let sections = self.performance.show?.script?.sections {
+                    ForEach(sections, id: \.id) { section in
+                        Button {
+                            self.goToLine(section.startLineNumber)
+                            dismiss()
+                        } label: {
+                            Label(
+                                "\(section.title)",
+                                systemImage: ""
+                            )
+                        }
+                    }
+                } else {
+                    Text("No sections found!")
+                }
+            }
+            .navigationTitle("Go To Section")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Label(
+                            "Dismiss",
+                            systemImage: ""
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct MIDIConfigurationView: View {
+    let midiHelper: MIDIHelper
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            List {
+                Section("MIDI Program Change Mapping") {
+                    ForEach(0...32, id: \.self) { program in
+                        HStack {
+                            Text("PC \(program)")
+                                .font(.system(.body, design: .monospaced))
+                                .frame(width: 60, alignment: .leading)
+                            
+                            Picker("Action", selection: Binding(
+                                get: {
+                                    midiHelper.programChangeMapping[program] ?? .none
+                                },
+                                set: {
+                                    midiHelper.mapProgramChange(program, to: $0)
+                                }
+                            )) {
+                                ForEach(MIDIHelper.RemoteAction.allCases, id: \.self) { action in
+                                    Text(action.rawValue).tag(action)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                        }
+                    }
+                }
+                
+                Section {
+                    Text("Map MIDI Program Change messages (0-32) to remote actions. Use your MIDI controller to send Program Change messages on any channel.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } header: {
+                    Text("Instructions")
+                }
+            }
+            .navigationTitle("MIDI Remote")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
     }
 }

@@ -58,10 +58,6 @@ struct PerformanceReportView: View {
                         Button("Export PDF", systemImage: "square.and.arrow.up") {
                             generatePDFSheetIsPresent = true
                         }
-                        
-                        Button("Share Report", systemImage: "square.and.arrow.up") {
-                            showingShareSheet = true
-                        }
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }

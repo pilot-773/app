@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftData
+import SwiftUI
 
 @Model
 class Performance: Identifiable {
@@ -352,5 +353,70 @@ class ReportShowStop: Identifiable {
         self.reason = reason
         self.duration = duration
         self.actNumber = actNumber
+    }
+}
+
+
+struct CallLogEntry: Identifiable {
+    let id = UUID()
+    let timestamp: Date
+    let message: String
+    let type: CallType
+    
+    enum CallType {
+        case call, action, emergency, note
+        
+        var color: Color {
+            switch self {
+            case .call: return .blue
+            case .action: return .green
+            case .emergency: return .red
+            case .note: return .orange
+            }
+        }
+    }
+}
+
+extension PerformanceState {
+    var displayName: String {
+        switch self {
+        case .preShow: return "Pre-Show"
+        case .houseOpen: return "House Open"
+        case .clearance: return "Stage Clear"
+        case .inProgress(let act): return "Act \(act) Running"
+        case .interval(let interval): return "Interval \(interval)"
+        case .completed: return "Show Complete"
+        case .stopped: return "Show Stopped"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .preShow: return .gray
+        case .houseOpen: return .blue
+        case .clearance: return .orange
+        case .inProgress: return .green
+        case .interval: return .purple
+        case .completed: return .green
+        case .stopped: return .red
+        }
+    }
+    
+    var actNumber: Int? {
+        switch self {
+        case .inProgress(let actNumber): return actNumber
+        default: return nil
+        }
+    }
+}
+
+extension CueType {
+    var isStandby: Bool {
+        switch self {
+        case .lightingStandby, .soundStandby, .flyStandby, .automationStandby:
+            return true
+        default:
+            return false
+        }
     }
 }

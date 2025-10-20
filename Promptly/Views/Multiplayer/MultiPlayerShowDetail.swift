@@ -22,89 +22,108 @@ struct MultiPlayerShowDetail: View {
     @State private var showingShow = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            if let title = title {
-                Text(title)
-                    .font(.largeTitle)
-                    .bold()
-            }
-            
-            VStack(alignment: .leading, spacing: 12) {
-                if let location = location {
-                    HStack {
-                        Text("Location:")
-                            .foregroundColor(.secondary)
-                        Text(location)
-                    }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                if let title = title {
+                    Text(title)
+                        .font(.largeTitle)
+                        .bold()
                 }
                 
-                if let scriptName = scriptName {
-                    HStack {
-                        Text("Script:")
-                            .foregroundColor(.secondary)
-                        Text(scriptName)
+                VStack(alignment: .leading, spacing: 12) {
+                    if let location = location {
+                        HStack {
+                            Text("Location:")
+                                .foregroundColor(.secondary)
+                            Text(location)
+                        }
                     }
-                }
-                
-                if let status = status {
-                    HStack {
-                        Text("Status:")
-                            .foregroundColor(.secondary)
-                        Text(status)
-                            .foregroundColor(status == "active" ? .green : .orange)
+                    
+                    if let scriptName = scriptName {
+                        HStack {
+                            Text("Script:")
+                                .foregroundColor(.secondary)
+                            Text(scriptName)
+                        }
                     }
-                }
-                
-                if let dsmNetworkIP = dsmNetworkIP {
-                    HStack {
-                        Text("DSM Network IP:")
-                            .foregroundColor(.secondary)
-                        Text(dsmNetworkIP)
-                            .font(.system(.body, design: .monospaced))
+                    
+                    if let status = status {
+                        HStack {
+                            Text("Status:")
+                                .foregroundColor(.secondary)
+                            Text(status)
+                                .foregroundColor(status == "active" ? .green : .orange)
+                        }
                     }
-                }
-            }
-            
-            Spacer()
-            
-            Button(action: {
-                if receivedScript != nil {
-                    showingShow = true
-                } else {
-                    isLoading = true
-                    fetchNetwork() { script in
-                        if let script = script {
-                            self.receivedScript = script
+                    
+                    if let dsmNetworkIP = dsmNetworkIP {
+                        HStack {
+                            Text("DSM Network IP:")
+                                .foregroundColor(.secondary)
+                            Text(dsmNetworkIP)
+                                .font(.system(.body, design: .monospaced))
                         }
                     }
                 }
-            }) {
-                Text(receivedScript != nil ? "Join Show" : "Join")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.blue)
-                    .cornerRadius(10)
+                
+                Spacer()
+                
+                Button(action: {
+                    if receivedScript != nil {
+                        showingShow = true
+                    } else {
+                        isLoading = true
+                        fetchNetwork() { script in
+                            if let script = script {
+                                self.receivedScript = script
+                            }
+                        }
+                    }
+                }) {
+                    Text(receivedScript != nil ? "Join Show" : "Join")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .cornerRadius(10)
+                }
             }
-        }
-        .padding()
-        .fullScreenCover(isPresented: $isLoading) {
-            ZStack {
-                Color.black.opacity(0.4)
-                    .ignoresSafeArea()
-                ProgressView()
-                    .scaleEffect(1.5)
-                    .tint(.white)
+            .padding()
+#if !os(macOS)
+            .fullScreenCover(isPresented: $isLoading) {
+                ZStack {
+                    Color.black.opacity(0.4)
+                        .ignoresSafeArea()
+                    ProgressView()
+                        .scaleEffect(1.5)
+                        .tint(.white)
+                }
             }
-        }
-        .fullScreenCover(isPresented: $showingShow) {
-            if let script = self.receivedScript {
-                SpectatorPerformanceView(showId: UUID(uuidString: self.showID)!, script: script, mqttManager: self.mqttManager)
+            .fullScreenCover(isPresented: $showingShow) {
+                if let script = self.receivedScript {
+                    SpectatorPerformanceView(showId: UUID(uuidString: self.showID)!, script: script, mqttManager: self.mqttManager)
+                }
             }
-        }
-        .onAppear {
-            loadShow()
+#else
+            .sheet(isPresented: $isLoading) {
+                ZStack {
+                    Color.black.opacity(0.4)
+                        .ignoresSafeArea()
+                    ProgressView()
+                        .scaleEffect(1.5)
+                        .tint(.white)
+                }
+            }
+            .sheet(isPresented: $showingShow) {
+                if let script = self.receivedScript {
+                    SpectatorPerformanceView(showId: UUID(uuidString: self.showID)!, script: script, mqttManager: self.mqttManager)
+                }
+            }
+#endif
+            .onAppear {
+                loadShow()
+            }
         }
     }
     

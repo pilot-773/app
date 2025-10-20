@@ -1,28 +1,19 @@
 //
 //  HomeScreenView.swift
-//  Promptly
+//  Promptly-WatchOS Watch App
 //
-//  Created by Sasha Bagrov on 04/06/2025.
+//  Created by Sasha Bagrov on 05/10/2025.
 //
 
 import SwiftUI
 import SwiftData
-import MIDIKitIO
-
 
 struct HomeScreenView: View {
-    @Query var shows: [Show] = []
-    
-    @Environment(\.modelContext) var modelContext
-    
     @State var navStackMessage: String = ""
-    @State var addShow: Bool = false
     @State var showNetworkSettings: Bool = false
     @State var availableShows: [String: String] = [:]
     
     @StateObject private var mqttManager = MQTTManager()
-    @Environment(ObservableMIDIManager.self) private var midiManager
-    @Environment(MIDIHelper.self) private var midiHelper
     
     var body: some View {
         NavigationStack {
@@ -48,9 +39,6 @@ struct HomeScreenView: View {
                     }
                 }
             }
-            .sheet(isPresented: self.$addShow) {
-                AddShowViewWrapper()
-            }
             .sheet(isPresented: self.$showNetworkSettings) {
                 NetworkSettingsView()
             }
@@ -60,26 +48,6 @@ struct HomeScreenView: View {
     var content: some View {
         Group {
             List {
-                Section(header: Text(
-                    "Select a show"
-                )) {
-                    if self.shows.isEmpty {
-                        ContentUnavailableView(
-                            "No shows saved",
-                            systemImage: "xmark.circle",
-                            description: Text(
-                                "Start by creating a show by clicking the plus icon in the top right hand corner."
-                            )
-                        )
-                    } else {
-                        ForEach(self.shows) { show in
-                            NavigationLink(destination: ShowDetailView(show: show)) {
-                                Text(show.title)
-                            }
-                        }
-                    }
-                }
-                
                 Section(header: Text("Or join a show")) {
                     if availableShows.isEmpty {
                         Text("No available shows")
@@ -102,20 +70,6 @@ struct HomeScreenView: View {
                 self.showNetworkSettings = true
             } label: {
                 Label("Network Settings", systemImage: "network")
-            }
-            
-            NavigationLink(
-                destination: BluetoothMIDIView()
-                    .navigationTitle("Remote Peripheral Config")
-                    .navigationBarTitleDisplayMode(.inline)
-            ) {
-                Label("MIDI", systemImage: "av.remote")
-            }
-            
-            Button {
-                self.addShow = true
-            } label: {
-                Label("Add Show", systemImage: "plus")
             }
         }
     }
@@ -149,7 +103,6 @@ struct NetworkSettingsView: View {
                         .autocorrectionDisabled()
                     
                     TextField("MQTT Port", text: $mqttPort)
-                        .keyboardType(.numberPad)
                 } header: {
                     Text("Connection Settings")
                 } footer: {

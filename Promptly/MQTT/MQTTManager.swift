@@ -8,6 +8,7 @@
 import Foundation
 import MQTTNIO
 import Combine
+internal import NIOCore
 
 class MQTTManager: ObservableObject {
     private var client: MQTTClient?
