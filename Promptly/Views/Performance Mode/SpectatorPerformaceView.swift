@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import Combine
 
 struct SpectatorPerformanceView: View {
     let showId: UUID
@@ -46,7 +47,11 @@ struct SpectatorPerformanceView: View {
                         .padding()
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                     }
-                    .background(Color(.systemBackground))
+#if os(watchOS)
+                    .foregroundColor(Color(.gray))
+#else
+                    .foregroundColor(Color(.systemBackground))
+#endif
                     .onChange(of: currentLine) { _, newValue in
                         withAnimation(.easeOut(duration: 0.15)) {
                             proxy.scrollTo("line-\(newValue)", anchor: .center)
@@ -119,10 +124,12 @@ struct SpectatorPerformanceView: View {
     private var spectatorHeader: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
+                #if !os(watchOS)
                 Text(script.name)
                     .font(.headline)
-                    .fontWeight(.bold)
+                    .fontWeight(.bold) 
                     .foregroundColor(.primary)
+                #endif
                 
                 HStack(spacing: 8) {
                     Text(status.displayName)
@@ -133,33 +140,45 @@ struct SpectatorPerformanceView: View {
                         .background(status.color.opacity(0.2))
                         .cornerRadius(4)
                     
+                    #if !os(watchOS)
                     Text("Spectator Mode")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                    #endif
                 }
             }
             
             Spacer()
             
+#if !os(watchOS)
             VStack(alignment: .trailing, spacing: 2) {
                 Text(currentTime.formatted(date: .omitted, time: .standard))
-                    .font(.title2)
+                    .font(.caption)
                     .fontWeight(.bold)
                     .monospacedDigit()
                     .foregroundColor(.primary)
                 
                 Text("Line \(currentLine)")
-                    .font(.caption)
+                    .font(.footnote)
                     .foregroundColor(.secondary)
                     .monospacedDigit()
             }
+            #endif
         }
         .padding()
-        .background(Color(.systemGray6))
+#if os(watchOS)
+        .foregroundColor(Color(.gray))
+#else
+        .foregroundColor(Color(.systemGray6))
+#endif
         .overlay(alignment: .bottom) {
             Rectangle()
                 .frame(height: 1)
+            #if os(watchOS)
+                .foregroundColor(Color(.gray))
+            #else
                 .foregroundColor(Color(.separator))
+            #endif
         }
     }
 }
@@ -170,7 +189,7 @@ struct TimeCallOverlay: View {
     
     var body: some View {
         ZStack {
-            Color.red
+            Color.black
                 .ignoresSafeArea()
             
             VStack {

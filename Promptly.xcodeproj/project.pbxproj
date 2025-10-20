@@ -7,12 +7,38 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		6F624EBF2DF370D700D17791 /* OpenAI in Frameworks */ = {isa = PBXBuildFile; productRef = 6F624EBE2DF370D700D17791 /* OpenAI */; };
-		6F624EC22DF373FF00D17791 /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = 6F624EC12DF373FF00D17791 /* Yams */; };
+		6F8BC3002E927EA7008EE618 /* Promptly-WatchOS Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 6F8BC2F62E927EA5008EE618 /* Promptly-WatchOS Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		6F8BC30B2E927FED008EE618 /* MQTTNIO in Frameworks */ = {isa = PBXBuildFile; productRef = 6F8BC30A2E927FED008EE618 /* MQTTNIO */; };
+		6F9232672EA2A9E500D929A7 /* MIDIKit in Frameworks */ = {isa = PBXBuildFile; productRef = 6F9232662EA2A9E500D929A7 /* MIDIKit */; };
+		6F9232692EA2A9E500D929A7 /* MIDIKitControlSurfaces in Frameworks */ = {isa = PBXBuildFile; productRef = 6F9232682EA2A9E500D929A7 /* MIDIKitControlSurfaces */; };
+		6F92326B2EA2A9E500D929A7 /* MIDIKitCore in Frameworks */ = {isa = PBXBuildFile; productRef = 6F92326A2EA2A9E500D929A7 /* MIDIKitCore */; };
+		6F92326D2EA2A9E500D929A7 /* MIDIKitIO in Frameworks */ = {isa = PBXBuildFile; productRef = 6F92326C2EA2A9E500D929A7 /* MIDIKitIO */; };
+		6F92326F2EA2A9E500D929A7 /* MIDIKitSMF in Frameworks */ = {isa = PBXBuildFile; productRef = 6F92326E2EA2A9E500D929A7 /* MIDIKitSMF */; };
 		6FAE1C952E89E0A500D067BE /* MQTTNIO in Frameworks */ = {isa = PBXBuildFile; productRef = 6FAE1C942E89E0A500D067BE /* MQTTNIO */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		6F8BC2FE2E927EA7008EE618 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6F0425B12DF0BFE5002B2081 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6F8BC2F52E927EA5008EE618;
+			remoteInfo = "Promptly-WatchOS Watch App";
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXCopyFilesBuildPhase section */
+		6F8BC3042E927EA7008EE618 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				6F8BC3002E927EA7008EE618 /* Promptly-WatchOS Watch App.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		6FF2CAA92E00C48A00AC265D /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -27,12 +53,40 @@
 
 /* Begin PBXFileReference section */
 		6F0425B92DF0BFE5002B2081 /* Promptly.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Promptly.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6F8BC2F62E927EA5008EE618 /* Promptly-WatchOS Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Promptly-WatchOS Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		6F8BC3082E927F26008EE618 /* Exceptions for "Promptly" folder in "Promptly-WatchOS Watch App" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Contants.swift,
+				Models/Errors.swift,
+				Models/Performance.swift,
+				Models/Script.swift,
+				Models/Show.swift,
+				MQTT/MQTTManager.swift,
+				Views/Multiplayer/MultiPlayerShowDetail.swift,
+				"Views/Performance Mode/CueTagView.swift",
+				"Views/Performance Mode/DSMScriptLineView.swift",
+				"Views/Performance Mode/SpectatorPerformaceView.swift",
+			);
+			target = 6F8BC2F52E927EA5008EE618 /* Promptly-WatchOS Watch App */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		6F0425BB2DF0BFE5002B2081 /* Promptly */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				6F8BC3082E927F26008EE618 /* Exceptions for "Promptly" folder in "Promptly-WatchOS Watch App" target */,
+			);
 			path = Promptly;
+			sourceTree = "<group>";
+		};
+		6F8BC2F72E927EA5008EE618 /* Promptly-WatchOS Watch App */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Promptly-WatchOS Watch App";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -42,9 +96,20 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6F9232692EA2A9E500D929A7 /* MIDIKitControlSurfaces in Frameworks */,
+				6F92326D2EA2A9E500D929A7 /* MIDIKitIO in Frameworks */,
+				6F9232672EA2A9E500D929A7 /* MIDIKit in Frameworks */,
+				6F92326F2EA2A9E500D929A7 /* MIDIKitSMF in Frameworks */,
 				6FAE1C952E89E0A500D067BE /* MQTTNIO in Frameworks */,
-				6F624EC22DF373FF00D17791 /* Yams in Frameworks */,
-				6F624EBF2DF370D700D17791 /* OpenAI in Frameworks */,
+				6F92326B2EA2A9E500D929A7 /* MIDIKitCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6F8BC2F32E927EA5008EE618 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6F8BC30B2E927FED008EE618 /* MQTTNIO in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -55,6 +120,7 @@
 			isa = PBXGroup;
 			children = (
 				6F0425BB2DF0BFE5002B2081 /* Promptly */,
+				6F8BC2F72E927EA5008EE618 /* Promptly-WatchOS Watch App */,
 				6FAE1C812E89DE6300D067BE /* Frameworks */,
 				6F0425BA2DF0BFE5002B2081 /* Products */,
 			);
@@ -64,6 +130,7 @@
 			isa = PBXGroup;
 			children = (
 				6F0425B92DF0BFE5002B2081 /* Promptly.app */,
+				6F8BC2F62E927EA5008EE618 /* Promptly-WatchOS Watch App.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -86,22 +153,50 @@
 				6F0425B62DF0BFE5002B2081 /* Frameworks */,
 				6F0425B72DF0BFE5002B2081 /* Resources */,
 				6FF2CAA92E00C48A00AC265D /* Embed Frameworks */,
+				6F8BC3042E927EA7008EE618 /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				6F8BC2FF2E927EA7008EE618 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				6F0425BB2DF0BFE5002B2081 /* Promptly */,
 			);
 			name = Promptly;
 			packageProductDependencies = (
-				6F624EBE2DF370D700D17791 /* OpenAI */,
-				6F624EC12DF373FF00D17791 /* Yams */,
 				6FAE1C942E89E0A500D067BE /* MQTTNIO */,
+				6F9232662EA2A9E500D929A7 /* MIDIKit */,
+				6F9232682EA2A9E500D929A7 /* MIDIKitControlSurfaces */,
+				6F92326A2EA2A9E500D929A7 /* MIDIKitCore */,
+				6F92326C2EA2A9E500D929A7 /* MIDIKitIO */,
+				6F92326E2EA2A9E500D929A7 /* MIDIKitSMF */,
 			);
 			productName = Promptly;
 			productReference = 6F0425B92DF0BFE5002B2081 /* Promptly.app */;
+			productType = "com.apple.product-type.application";
+		};
+		6F8BC2F52E927EA5008EE618 /* Promptly-WatchOS Watch App */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6F8BC3012E927EA7008EE618 /* Build configuration list for PBXNativeTarget "Promptly-WatchOS Watch App" */;
+			buildPhases = (
+				6F8BC2F22E927EA5008EE618 /* Sources */,
+				6F8BC2F32E927EA5008EE618 /* Frameworks */,
+				6F8BC2F42E927EA5008EE618 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				6F8BC2F72E927EA5008EE618 /* Promptly-WatchOS Watch App */,
+			);
+			name = "Promptly-WatchOS Watch App";
+			packageProductDependencies = (
+				6F8BC30A2E927FED008EE618 /* MQTTNIO */,
+			);
+			productName = "Promptly-WatchOS Watch App";
+			productReference = 6F8BC2F62E927EA5008EE618 /* Promptly-WatchOS Watch App.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -111,11 +206,14 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1640;
+				LastSwiftUpdateCheck = 2600;
 				LastUpgradeCheck = 1640;
 				TargetAttributes = {
 					6F0425B82DF0BFE5002B2081 = {
 						CreatedOnToolsVersion = 16.4;
+					};
+					6F8BC2F52E927EA5008EE618 = {
+						CreatedOnToolsVersion = 26.0.1;
 					};
 				};
 			};
@@ -129,9 +227,8 @@
 			mainGroup = 6F0425B02DF0BFE5002B2081;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				6F624EBD2DF370D700D17791 /* XCRemoteSwiftPackageReference "OpenAI" */,
-				6F624EC02DF373FF00D17791 /* XCRemoteSwiftPackageReference "Yams" */,
 				6FAE1C932E89E0A500D067BE /* XCRemoteSwiftPackageReference "mqtt-nio" */,
+				6F9232652EA2A9E500D929A7 /* XCRemoteSwiftPackageReference "MIDIKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 6F0425BA2DF0BFE5002B2081 /* Products */;
@@ -139,12 +236,20 @@
 			projectRoot = "";
 			targets = (
 				6F0425B82DF0BFE5002B2081 /* Promptly */,
+				6F8BC2F52E927EA5008EE618 /* Promptly-WatchOS Watch App */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		6F0425B72DF0BFE5002B2081 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6F8BC2F42E927EA5008EE618 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -161,7 +266,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		6F8BC2F22E927EA5008EE618 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		6F8BC2FF2E927EA7008EE618 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6F8BC2F52E927EA5008EE618 /* Promptly-WatchOS Watch App */;
+			targetProxy = 6F8BC2FE2E927EA7008EE618 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		6F0425C32DF0BFE6002B2081 /* Debug */ = {
@@ -287,12 +407,12 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Promptly/Promptly.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 20;
 				DEVELOPMENT_TEAM = 8Y3J97SYZG;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Promptly;
+				INFOPLIST_KEY_CFBundleDisplayName = DSMPrompt;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "We use bluetooth connectivity to connect to Promptly Clicker devices for script line control.";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "This app connects to BLE devices for remote control functionality.";
@@ -307,11 +427,11 @@
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.1;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.urbanmechanicsltd.Promptly;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -331,12 +451,12 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Promptly/Promptly.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 20;
 				DEVELOPMENT_TEAM = 8Y3J97SYZG;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Promptly;
+				INFOPLIST_KEY_CFBundleDisplayName = DSMPrompt;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "We use bluetooth connectivity to connect to Promptly Clicker devices for script line control.";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "This app connects to BLE devices for remote control functionality.";
@@ -351,11 +471,11 @@
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.1;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.urbanmechanicsltd.Promptly;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -365,6 +485,73 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
 				XROS_DEPLOYMENT_TARGET = 2.5;
+			};
+			name = Release;
+		};
+		6F8BC3022E927EA7008EE618 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8Y3J97SYZG;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = DSMPrompt;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.urbanmechanicsltd.Promptly;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.urbanmechanicsltd.Promptly.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Debug;
+		};
+		6F8BC3032E927EA7008EE618 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8Y3J97SYZG;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = DSMPrompt;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.urbanmechanicsltd.Promptly;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.urbanmechanicsltd.Promptly.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VALIDATE_PRODUCT = YES;
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
 			};
 			name = Release;
 		};
@@ -389,23 +576,24 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		6F8BC3012E927EA7008EE618 /* Build configuration list for PBXNativeTarget "Promptly-WatchOS Watch App" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6F8BC3022E927EA7008EE618 /* Debug */,
+				6F8BC3032E927EA7008EE618 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		6F624EBD2DF370D700D17791 /* XCRemoteSwiftPackageReference "OpenAI" */ = {
+		6F9232652EA2A9E500D929A7 /* XCRemoteSwiftPackageReference "MIDIKit" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/MacPaw/OpenAI";
+			repositoryURL = "https://github.com/orchetect/MIDIKit";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 0.4.3;
-			};
-		};
-		6F624EC02DF373FF00D17791 /* XCRemoteSwiftPackageReference "Yams" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/jpsim/Yams";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 6.0.0;
+				minimumVersion = 0.10.5;
 			};
 		};
 		6FAE1C932E89E0A500D067BE /* XCRemoteSwiftPackageReference "mqtt-nio" */ = {
@@ -419,15 +607,35 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		6F624EBE2DF370D700D17791 /* OpenAI */ = {
+		6F8BC30A2E927FED008EE618 /* MQTTNIO */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 6F624EBD2DF370D700D17791 /* XCRemoteSwiftPackageReference "OpenAI" */;
-			productName = OpenAI;
+			package = 6FAE1C932E89E0A500D067BE /* XCRemoteSwiftPackageReference "mqtt-nio" */;
+			productName = MQTTNIO;
 		};
-		6F624EC12DF373FF00D17791 /* Yams */ = {
+		6F9232662EA2A9E500D929A7 /* MIDIKit */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 6F624EC02DF373FF00D17791 /* XCRemoteSwiftPackageReference "Yams" */;
-			productName = Yams;
+			package = 6F9232652EA2A9E500D929A7 /* XCRemoteSwiftPackageReference "MIDIKit" */;
+			productName = MIDIKit;
+		};
+		6F9232682EA2A9E500D929A7 /* MIDIKitControlSurfaces */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6F9232652EA2A9E500D929A7 /* XCRemoteSwiftPackageReference "MIDIKit" */;
+			productName = MIDIKitControlSurfaces;
+		};
+		6F92326A2EA2A9E500D929A7 /* MIDIKitCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6F9232652EA2A9E500D929A7 /* XCRemoteSwiftPackageReference "MIDIKit" */;
+			productName = MIDIKitCore;
+		};
+		6F92326C2EA2A9E500D929A7 /* MIDIKitIO */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6F9232652EA2A9E500D929A7 /* XCRemoteSwiftPackageReference "MIDIKit" */;
+			productName = MIDIKitIO;
+		};
+		6F92326E2EA2A9E500D929A7 /* MIDIKitSMF */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6F9232652EA2A9E500D929A7 /* XCRemoteSwiftPackageReference "MIDIKit" */;
+			productName = MIDIKitSMF;
 		};
 		6FAE1C942E89E0A500D067BE /* MQTTNIO */ = {
 			isa = XCSwiftPackageProductDependency;

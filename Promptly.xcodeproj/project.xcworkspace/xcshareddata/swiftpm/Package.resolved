@@ -1,6 +1,15 @@
 {
-  "originHash" : "11bbdceb80b1d497c541689fd7138faf157ab6fbbdc493d740416bb2b81f32c9",
+  "originHash" : "bfa12cb89869b24734bffcae0a12d3f2ad26093cc5af5a79d12afe7e1c4ce68c",
   "pins" : [
+    {
+      "identity" : "midikit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/orchetect/MIDIKit",
+      "state" : {
+        "revision" : "2e856b27af1ebdeb41017ec9e3ac0cd3ae1411a2",
+        "version" : "0.10.5"
+      }
+    },
     {
       "identity" : "mqtt-nio",
       "kind" : "remoteSourceControl",
@@ -8,15 +17,6 @@
       "state" : {
         "revision" : "ad1f0bc339a6df89a28b419cdd452b0df584423d",
         "version" : "2.8.1"
-      }
-    },
-    {
-      "identity" : "openai",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/MacPaw/OpenAI",
-      "state" : {
-        "revision" : "9261cd39d55a718bcc360fbc29515a331cad5dbb",
-        "version" : "0.4.3"
       }
     },
     {
@@ -35,15 +35,6 @@
       "state" : {
         "revision" : "8c0c0a8b49e080e54e5e328cc552821ff07cd341",
         "version" : "1.2.1"
-      }
-    },
-    {
-      "identity" : "swift-http-types",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-http-types",
-      "state" : {
-        "revision" : "a0a57e949a8903563aba4615869310c0ebf14c03",
-        "version" : "1.4.0"
       }
     },
     {
@@ -83,15 +74,6 @@
       }
     },
     {
-      "identity" : "swift-openapi-runtime",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-openapi-runtime",
-      "state" : {
-        "revision" : "8f33cc5dfe81169fb167da73584b9c72c3e8bc23",
-        "version" : "1.8.2"
-      }
-    },
-    {
       "identity" : "swift-system",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-system.git",
@@ -101,12 +83,12 @@
       }
     },
     {
-      "identity" : "yams",
+      "identity" : "timecodekit",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/jpsim/Yams",
+      "location" : "https://github.com/orchetect/TimecodeKit",
       "state" : {
-        "revision" : "9281f8c99aff4f4a55dce22ae29b1181c935caa5",
-        "version" : "6.0.0"
+        "revision" : "957fdaeda020396d150ee1afc7c5172791cb0ad5",
+        "version" : "2.3.4"
       }
     }
   ],

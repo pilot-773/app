@@ -152,6 +152,7 @@ struct ShowDetailView: View {
                 performanceToStart = nil
             }, content: {
                 DSMPerformanceView(performance: $0)
+                    .interactiveDismissDisabled(true)
             })
             .onAppear {
                 print("📅 Performance dates: \(show.performanceDates.count)")
@@ -220,21 +221,21 @@ struct ShowDetailView: View {
                     .cornerRadius(8)
                 }
 
-                Button(role: .destructive) {
-                    show.performanceDates.removeAll()
-                    show.peformances.removeAll()
-                    let today = Date()
-                    addPerformance(date: today)
-                } label: {
-                    HStack {
-                        Image(systemName: "trash")
-                        Text("Delete All & Add Today")
-                        Spacer()
-                    }
-                    .padding()
-                    .background(Color(.tertiarySystemGroupedBackground))
-                    .cornerRadius(8)
-                }
+                // Button(role: .destructive) {
+                //     show.performanceDates.removeAll()
+                //     show.peformances.removeAll()
+                //     let today = Date()
+                //     addPerformance(date: today)
+                // } label: {
+                //     HStack {
+                //         Image(systemName: "trash")
+                //         Text("Delete All & Add Today")
+                //         Spacer()
+                //     }
+                //     .padding()
+                //     .background(Color(.tertiarySystemGroupedBackground))
+                //     .cornerRadius(8)
+                // }
             }
         }
     }
