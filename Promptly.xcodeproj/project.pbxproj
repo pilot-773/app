@@ -73,12 +73,20 @@
 			);
 			target = 6F8BC2F52E927EA5008EE618 /* Promptly-WatchOS Watch App */;
 		};
+		6FE901B92EA6F9CF002F79B4 /* Exceptions for "Promptly" folder in "Promptly" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 6F0425B82DF0BFE5002B2081 /* Promptly */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		6F0425BB2DF0BFE5002B2081 /* Promptly */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
+				6FE901B92EA6F9CF002F79B4 /* Exceptions for "Promptly" folder in "Promptly" target */,
 				6F8BC3082E927F26008EE618 /* Exceptions for "Promptly" folder in "Promptly-WatchOS Watch App" target */,
 			);
 			path = Promptly;
@@ -412,6 +420,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Promptly/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = DSMPrompt;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "We use bluetooth connectivity to connect to Promptly Clicker devices for script line control.";
@@ -456,6 +465,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Promptly/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = DSMPrompt;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "We use bluetooth connectivity to connect to Promptly Clicker devices for script line control.";
