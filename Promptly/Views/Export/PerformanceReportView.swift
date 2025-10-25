@@ -19,7 +19,7 @@ struct PerformanceReportView: View {
     @State private var generatePDFSheetIsPresent = false
     
     var body: some View {
-        NavigationView {
+        Group {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     reportHeader
@@ -46,13 +46,7 @@ struct PerformanceReportView: View {
             }
             .navigationTitle("Performance Report")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-                
+            .toolbar {                
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
                         Button("Export PDF", systemImage: "square.and.arrow.up") {
@@ -499,6 +493,17 @@ class PerformanceReportPDFGenerator {
                 yPosition = drawText("Calls Executed: \(report.callsExecuted)", at: yPosition, in: context.cgContext)
                 yPosition = drawText("Cues Executed: \(report.cuesExecuted)", at: yPosition, in: context.cgContext)
                 yPosition = drawText("Show Stops: \(report.showStops)", at: yPosition, in: context.cgContext)
+                
+                if report.showStops > 0 {
+                    for entry in report.callLogEntries {
+                        if entry.message.contains("EMERGENCY STOP: ") {
+                            if let range = entry.message.range(of: "EMERGENCY STOP: ") {
+                                let textAfterStop = String(entry.message[range.upperBound...])
+                                yPosition = drawText("  E STOP: \(textAfterStop)", at: yPosition, in: context.cgContext)
+                            }
+                        }
+                    }
+                }
                 yPosition += 20
                 
                 if let startTime = report.startTime, let endTime = report.endTime {
