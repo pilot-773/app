@@ -79,6 +79,14 @@ extension PromptlyApp: WhatsNewCollectionProvider {
                     ),
                     title: "Bug Fixes",
                     subtitle: "Bug fixes and stability improvements."
+                ),
+                .init(
+                    image: .init(
+                        systemName: "hammer",
+                        foregroundColor: .red
+                    ),
+                    title: "PDF Rendering",
+                    subtitle: "Fixed bug where if you were in dark mode the text would not show in PDF exports."
                 )
             ],
             primaryAction: .init(

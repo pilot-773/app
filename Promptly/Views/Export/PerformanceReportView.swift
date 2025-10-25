@@ -555,7 +555,7 @@ class PerformanceReportPDFGenerator {
     private func drawTitle(_ text: String, at y: CGFloat, in context: CGContext) -> CGFloat {
         let attributes: [NSAttributedString.Key: Any] = [
             .font: UIFont.boldSystemFont(ofSize: 24),
-            .foregroundColor: UIColor.label
+            .foregroundColor: UIColor.black
         ]
         
         let attributedString = NSAttributedString(string: text, attributes: attributes)
@@ -568,7 +568,7 @@ class PerformanceReportPDFGenerator {
     private func drawSubtitle(_ text: String, at y: CGFloat, in context: CGContext) -> CGFloat {
         let attributes: [NSAttributedString.Key: Any] = [
             .font: UIFont.systemFont(ofSize: 18, weight: .medium),
-            .foregroundColor: UIColor.secondaryLabel
+            .foregroundColor: UIColor.blue
         ]
         
         let attributedString = NSAttributedString(string: text, attributes: attributes)
@@ -581,7 +581,7 @@ class PerformanceReportPDFGenerator {
     private func drawSectionHeader(_ text: String, at y: CGFloat, in context: CGContext) -> CGFloat {
         let attributes: [NSAttributedString.Key: Any] = [
             .font: UIFont.boldSystemFont(ofSize: 16),
-            .foregroundColor: UIColor.label
+            .foregroundColor: UIColor.black
         ]
         
         let attributedString = NSAttributedString(string: text, attributes: attributes)
@@ -594,7 +594,7 @@ class PerformanceReportPDFGenerator {
     private func drawText(_ text: String, at y: CGFloat, in context: CGContext, fontSize: CGFloat = 12) -> CGFloat {
         let attributes: [NSAttributedString.Key: Any] = [
             .font: UIFont.systemFont(ofSize: fontSize),
-            .foregroundColor: UIColor.label
+            .foregroundColor: UIColor.black
         ]
         
         let attributedString = NSAttributedString(string: text, attributes: attributes)
