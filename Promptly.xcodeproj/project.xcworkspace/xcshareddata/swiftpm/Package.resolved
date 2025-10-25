@@ -1,5 +1,5 @@
 {
-  "originHash" : "bfa12cb89869b24734bffcae0a12d3f2ad26093cc5af5a79d12afe7e1c4ce68c",
+  "originHash" : "a302ced32300583da905545009a08575f6b11e9996f3f89223cf2d89f08b3e92",
   "pins" : [
     {
       "identity" : "midikit",
@@ -89,6 +89,15 @@
       "state" : {
         "revision" : "957fdaeda020396d150ee1afc7c5172791cb0ad5",
         "version" : "2.3.4"
+      }
+    },
+    {
+      "identity" : "whatsnewkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/SvenTiigi/WhatsNewKit",
+      "state" : {
+        "revision" : "6157c77e8be9b3d2310bc680681b61a8d9e290ac",
+        "version" : "2.2.1"
       }
     }
   ],
