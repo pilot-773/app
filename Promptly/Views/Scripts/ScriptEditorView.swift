@@ -22,9 +22,9 @@ struct ScriptEditorView: View {
     @State private var showingDeleteCueAlert = false
     @State private var cueToDelete: Cue?
     
-    private var sortedLines: [ScriptLine] {
-        script.lines.sorted(by: { $0.lineNumber < $1.lineNumber })
-    }
+    @State private var sortedLines: [ScriptLine] = []
+    @State private var sortedSections: [ScriptSection] = []
+    @State private var lineGroups: [LineGroup] = []
     
     private func handleCueEdit(cue: Cue) {
         guard let line = script.lines.first(where: { $0.id == cue.lineId }) else { return }
@@ -33,9 +33,65 @@ struct ScriptEditorView: View {
         isShowingCueEditor = true
     }
     
+    private func setupSortedData() {
+        sortedLines = script.lines.sorted { $0.lineNumber < $1.lineNumber }
+        sortedSections = script.sections.sorted { $0.startLineNumber < $1.startLineNumber }
+        lineGroups = groupLinesBySection()
+    }
+    
+    private func groupLinesBySection() -> [LineGroup] {
+        let maxVisibleSections = 20
+        let limitedSections = Array(sortedSections.prefix(maxVisibleSections))
+        
+        var groups: [LineGroup] = []
+        var lastProcessedLine = 0
+        
+        for section in limitedSections {
+            let startLine = section.startLineNumber
+            
+            let nextSectionStart = sortedSections.first {
+                $0.startLineNumber > startLine
+            }?.startLineNumber ?? (sortedLines.last?.lineNumber ?? 0) + 1
+            
+            if startLine > lastProcessedLine + 1 {
+                let ungroupedLines = sortedLines.filter {
+                    $0.lineNumber > lastProcessedLine && $0.lineNumber < startLine
+                }
+                if !ungroupedLines.isEmpty {
+                    groups.append(LineGroup(section: nil, lines: ungroupedLines))
+                }
+            }
+            
+            let sectionLines = sortedLines.filter {
+                $0.lineNumber >= startLine && $0.lineNumber < nextSectionStart
+            }
+            
+            if !sectionLines.isEmpty {
+                groups.append(LineGroup(section: section, lines: sectionLines))
+                lastProcessedLine = sectionLines.last?.lineNumber ?? lastProcessedLine
+            }
+        }
+        
+        let remainingLines = sortedLines.filter { $0.lineNumber > lastProcessedLine }
+        if !remainingLines.isEmpty {
+            groups.append(LineGroup(section: nil, lines: remainingLines))
+        }
+        
+        return groups
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             scriptContentView
+        }
+        .onAppear {
+            setupSortedData()
+        }
+        .onChange(of: script.sections.count) { _, _ in
+            setupSortedData()
+        }
+        .onChange(of: script.lines.count) { _, _ in
+            setupSortedData()
         }
         .sheet(isPresented: $isShowingCueEditor) {
             if let line = selectedLine, let element = selectedElement {
@@ -71,25 +127,33 @@ struct ScriptEditorView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
-                    ForEach(sortedLines, id: \.id) { line in
-                        ScriptLineView(
-                            line: line,
-                            isSelected: selectedLine?.id == line.id,
-                            isEditing: editingLineId == line.id,
-                            editingText: $editingText,
-                            onElementTap: { element in
-                                handleElementTap(element: element, line: line)
-                            },
-                            onLineTap: {
-                                handleLineTap(line: line)
-                            },
-                            onEditComplete: { newText in
-                                updateLineContent(line: line, newText: newText)
-                            },
-                            onCueDelete: handleCueDelete,
-                            onCueEdit: handleCueEdit
-                        )
-                        .id("line-\(line.id)")
+                    ForEach(lineGroups, id: \.id) { group in
+                        if let section = group.section {
+                            SectionHeaderView(section: section)
+                                .padding(.horizontal, 16)
+                                .padding(.top, 8)
+                        }
+                        
+                        ForEach(group.lines, id: \.id) { line in
+                            ScriptLineView(
+                                line: line,
+                                isSelected: selectedLine?.id == line.id,
+                                isEditing: editingLineId == line.id,
+                                editingText: $editingText,
+                                onElementTap: { element in
+                                    handleElementTap(element: element, line: line)
+                                },
+                                onLineTap: {
+                                    handleLineTap(line: line)
+                                },
+                                onEditComplete: { newText in
+                                    updateLineContent(line: line, newText: newText)
+                                },
+                                onCueDelete: handleCueDelete,
+                                onCueEdit: handleCueEdit
+                            )
+                            .id("line-\(line.id)")
+                        }
                     }
                 }
                 .padding()
@@ -118,6 +182,8 @@ struct ScriptEditorView: View {
         line.parseContentIntoElements()
         editingLineId = nil
         try? modelContext.save()
+        
+        setupSortedData()
     }
     
     private func handleCueDelete(cue: Cue) {
