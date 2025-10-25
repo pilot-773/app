@@ -7,6 +7,13 @@
 
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
+
+extension UTType {
+    static var dsmPrompt: UTType {
+        UTType(exportedAs: "com.promptly.dsmprompt")
+    }
+}
 
 struct ShowDetailView: View {
     @Environment(\.modelContext) private var modelContext
@@ -23,6 +30,9 @@ struct ShowDetailView: View {
     
     @State private var showPerformanceAlert: Bool = false
     @State private var performanceToStart: Performance? = nil
+    
+    @State private var showingExportShowSheet = false
+    @State private var exportError: ExportError1?
     
     @Query private var performanceReports: [PerformanceReport]
     
@@ -70,6 +80,12 @@ struct ShowDetailView: View {
                     Menu {
                         Button("Edit Show", systemImage: "pencil") {
                             isShowingEditShow = true
+                        }
+                        
+                        Divider()
+                        
+                        Button("Export Show", systemImage: "square.and.arrow.up") {
+                            showingExportShowSheet = true
                         }
                         
                         Divider()
@@ -132,6 +148,20 @@ struct ShowDetailView: View {
                     }
                 }
             }
+            .fileExporter(
+                isPresented: $showingExportShowSheet,
+                document: DSMPromptDocument(show: show),
+                contentType: .dsmPrompt,
+                defaultFilename: "\(show.title.replacingOccurrences(of: " ", with: "_")).dsmprompt"
+            ) { result in
+                switch result {
+                case .success(let url):
+                    print("✅ Show exported successfully to: \(url)")
+                case .failure(let error):
+                    print("❌ Export failed: \(error)")
+                    exportError = .serialisationFailed
+                }
+            }
             .alert("Delete Show", isPresented: $isShowingDeleteAlert) {
                 Button("Cancel", role: .cancel) { }
                 Button("Delete", role: .destructive) {
@@ -139,6 +169,16 @@ struct ShowDetailView: View {
                 }
             } message: {
                 Text("Are you sure you want to delete '\(show.title)'? This action cannot be undone.")
+            }
+            .alert("Export Error", isPresented: Binding<Bool>(
+                get: { exportError != nil },
+                set: { _ in exportError = nil }
+            )) {
+                Button("OK") { exportError = nil }
+            } message: {
+                if let error = exportError {
+                    Text(error.localizedDescription)
+                }
             }
             .alert("Which performance would you like to start?", isPresented: $showPerformanceAlert) {
                 Button("Cancel", role: .cancel) { }
@@ -229,11 +269,14 @@ struct ShowDetailView: View {
                 // } label: {
                 //     HStack {
                 //         Image(systemName: "trash")
-                //         Text("Delete All & Add Today")
+                //             .foregroundColor(.red)
+                //         Text("Delete All and Create Today")
+                //             .font(.subheadline)
+                //             .foregroundColor(.red)
                 //         Spacer()
                 //     }
                 //     .padding()
-                //     .background(Color(.tertiarySystemGroupedBackground))
+                //     .background(Color(.secondarySystemGroupedBackground))
                 //     .cornerRadius(8)
                 // }
             }
@@ -242,7 +285,7 @@ struct ShowDetailView: View {
     
     private var scriptSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Script & Cues")
+            Text("Script")
                 .font(.headline)
             
             if let script = show.script {
@@ -260,36 +303,25 @@ struct ShowDetailView: View {
     
     private var performanceReportsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
+            Text("Performance Reports")
+                .font(.headline)
+            
             HStack {
-                Text("Performance Reports")
-                    .font(.headline)
+                Text("\(reportsForThisShow.count) reports available")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
                 
                 Spacer()
                 
                 Button("View All") {
                     showingReports = true
                 }
-                .font(.caption)
+                .font(.subheadline)
                 .foregroundColor(.blue)
             }
-            
-            VStack(spacing: 8) {
-                ForEach(reportsForThisShow.prefix(3)) { report in
-                    PerformanceReportSummaryCard(report: report)
-                }
-                
-                if reportsForThisShow.count > 3 {
-                    Button("View \(reportsForThisShow.count - 3) more reports") {
-                        showingReports = true
-                    }
-                    .font(.caption)
-                    .foregroundColor(.blue)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(Color(.secondarySystemGroupedBackground))
-                    .cornerRadius(8)
-                }
-            }
+            .padding()
+            .background(Color(.secondarySystemGroupedBackground))
+            .cornerRadius(8)
         }
     }
     
@@ -343,40 +375,70 @@ struct ShowDetailView: View {
         }
     }
     
-    private func addPerformance(date: Date) {
-        let newPerformanceDate = PerformanceDate(date: date)
-        show.performanceDates.append(newPerformanceDate)
+    private func deleteShow() {
+        modelContext.delete(show)
+        dismiss()
+    }
+    
+    private func deletePerformanceDate(for performanceDate: PerformanceDate) {
+        if let index = show.performanceDates.firstIndex(of: performanceDate) {
+            show.removePerformanceDate(at: index)
+        }
         
-        let newPerformance = Performance(
+        if let matchingPerformance = show.peformances.first(where: {
+            abs($0.date.timeIntervalSince(performanceDate.date)) < 86400
+        }) {
+            show.peformances.removeAll { $0.id == matchingPerformance.id }
+            modelContext.delete(matchingPerformance)
+        }
+    }
+    
+    private func addPerformance(date: Date) {
+        show.addPerformanceDate(date)
+        
+        let performance = Performance(
             id: UUID(),
             date: date,
             calls: [],
             timing: nil,
             show: show
         )
-        show.peformances.append(newPerformance)
         
-        try? modelContext.save()
+        modelContext.insert(performance)
+        show.peformances.append(performance)
     }
     
-    private func deleteShow() {
-        modelContext.delete(show)
-        try? modelContext.save()
-        dismiss()
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let hours = Int(duration) / 3600
+        let minutes = (Int(duration) % 3600) / 60
+        let seconds = Int(duration) % 60
+        
+        if hours > 0 {
+            return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            return String(format: "%02d:%02d", minutes, seconds)
+        }
+    }
+}
+
+struct DSMPromptDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.dsmPrompt] }
+    
+    let show: Show
+    
+    init(show: Show) {
+        self.show = show
     }
     
-    private func deletePerformanceDate(for date: PerformanceDate) {
-        if let dateIndex = show.performanceDates.firstIndex(where: { $0.id == date.id }) {
-            show.performanceDates.remove(at: dateIndex)
+    init(configuration: ReadConfiguration) throws {
+        throw CocoaError(.featureUnsupported)
+    }
+    
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        guard let data = ShowExportManager.exportShow(show) else {
+            throw ExportError1.serialisationFailed
         }
-
-        if let perfIndex = show.peformances.firstIndex(where: {
-            Calendar.current.isDate($0.date, inSameDayAs: date.date)
-        }) {
-            show.peformances.remove(at: perfIndex)
-        }
-
-        try? modelContext.save()
+        return FileWrapper(regularFileWithContents: data)
     }
 }
 

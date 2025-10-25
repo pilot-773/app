@@ -8,7 +8,8 @@
 import SwiftUI
 import SwiftData
 import MIDIKitIO
-
+import UniformTypeIdentifiers
+import WhatsNewKit
 
 struct HomeScreenView: View {
     @Query var shows: [Show] = []
@@ -18,6 +19,8 @@ struct HomeScreenView: View {
     @State var navStackMessage: String = ""
     @State var addShow: Bool = false
     @State var showNetworkSettings: Bool = false
+    @State var showingImportShowSheet = false
+    @State var importError: ImportError?
     @State var availableShows: [String: String] = [:]
     
     @StateObject private var mqttManager = MQTTManager()
@@ -54,6 +57,38 @@ struct HomeScreenView: View {
             .sheet(isPresented: self.$showNetworkSettings) {
                 NetworkSettingsView()
             }
+            .fileImporter(
+                isPresented: $showingImportShowSheet,
+                allowedContentTypes: [.dsmPrompt],
+                allowsMultipleSelection: false
+            ) { result in
+                switch result {
+                case .success(let urls):
+                    guard let url = urls.first else { return }
+                    
+                    do {
+                        let importedShow = try ShowImportManager.importShowFromFile(from: url, into: modelContext)
+                        print("✅ Show imported successfully: \(importedShow.title)")
+                    } catch {
+                        print("❌ Import failed: \(error)")
+                        importError = error as? ImportError ?? .invalidFileFormat
+                    }
+                case .failure(let error):
+                    print("❌ File selection failed: \(error)")
+                    importError = .invalidFileFormat
+                }
+            }
+            .alert("Import Error", isPresented: Binding<Bool>(
+                get: { importError != nil },
+                set: { _ in importError = nil }
+            )) {
+                Button("OK") { importError = nil }
+            } message: {
+                if let error = importError {
+                    Text(error.localizedDescription)
+                }
+            }
+            .whatsNewSheet()
         }
     }
     
@@ -110,6 +145,12 @@ struct HomeScreenView: View {
                     .navigationBarTitleDisplayMode(.inline)
             ) {
                 Label("MIDI", systemImage: "av.remote")
+            }
+            
+            Button {
+                showingImportShowSheet = true
+            } label: {
+                Label("Import Show", systemImage: "square.and.arrow.down")
             }
             
             Button {
@@ -176,6 +217,21 @@ struct NetworkSettingsView: View {
                     }
                 }
             }
+        }
+    }
+}
+
+extension ImportError: LocalizedError {
+    var errorDescription: String? {
+        switch self {
+        case .invalidFileFormat:
+            return "Invalid file format. Please select a valid .dsmprompt file."
+        case .corruptedData:
+            return "The file appears to be corrupted and cannot be imported."
+        case .unsupportedVersion:
+            return "This file was created with a newer version of the app."
+        case .missingRequiredFields:
+            return "The file is missing required data and cannot be imported."
         }
     }
 }

@@ -120,6 +120,33 @@ class ScriptLine: Identifiable {
 enum ScriptLineFlags: String, CaseIterable, Codable {
     case stageDirection = "stageDirection"
     case skip = "skip"
+    
+    var icon: String {
+        switch self {
+        case .stageDirection:
+            return "theatermasks"
+        case .skip:
+            return "forward.fill"
+        }
+    }
+    
+    var label: String {
+        switch self {
+        case .stageDirection:
+            return "Stage"
+        case .skip:
+            return "Skip"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .stageDirection:
+            return .purple
+        case .skip:
+            return .red
+        }
+    }
 }
 
 @Model
