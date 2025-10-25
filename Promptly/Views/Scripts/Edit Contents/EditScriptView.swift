@@ -14,6 +14,12 @@ class RefreshTrigger: ObservableObject {
     }
 }
 
+struct LineGroup: Identifiable {
+    let id = UUID()
+    let section: ScriptSection?
+    let lines: [ScriptLine]
+}
+
 struct EditScriptView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -283,32 +289,40 @@ struct EditScriptView: View {
     private var scriptContentView: some View {
         ScrollView {
             LazyVStack(spacing: 8) {
-                ForEach(sortedLines, id: \.id) { line in
-                    EditableScriptLineView(
-                        line: line,
-                        isEditing: isEditing,
-                        isSelected: selectedLines.contains(line.id),
-                        isEditingText: editingLineId == line.id,
-                        isSelectingForSection: isSelectingLineForSection,
-                        editingText: $editingText
-                    ) { selectedLine in
-                        if isSelectingLineForSection {
-                            selectedLineForSection = selectedLine
-                            showingLineConfirmation = true
-                            isSelectingLineForSection = false
-                        } else {
-                            toggleLineSelection(selectedLine)
+                ForEach(groupLinesBySection(), id: \.id) { group in
+                    if let section = group.section {
+                        SectionHeaderView(section: section)
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                    }
+                    
+                    ForEach(group.lines, id: \.id) { line in
+                        EditableScriptLineView(
+                            line: line,
+                            isEditing: isEditing,
+                            isSelected: selectedLines.contains(line.id),
+                            isEditingText: editingLineId == line.id,
+                            isSelectingForSection: isSelectingLineForSection,
+                            editingText: $editingText
+                        ) { selectedLine in
+                            if isSelectingLineForSection {
+                                selectedLineForSection = selectedLine
+                                showingLineConfirmation = true
+                                isSelectingLineForSection = false
+                            } else {
+                                toggleLineSelection(selectedLine)
+                            }
+                        } onStartTextEdit: { lineToEdit in
+                            startEditing(line: lineToEdit)
+                        } onFinishTextEdit: { newText in
+                            finishEditing(newText: newText)
+                        } onInsertAfter: { lineToInsertAfter in
+                            insertAfterLineNumber = lineToInsertAfter.lineNumber
+                            showingAddLine = true
+                        } onEditFlags: { lineToFlag in
+                            lineBeingFlagged = lineToFlag
+                            showingFlagEditor = true
                         }
-                    } onStartTextEdit: { lineToEdit in
-                        startEditing(line: lineToEdit)
-                    } onFinishTextEdit: { newText in
-                        finishEditing(newText: newText)
-                    } onInsertAfter: { lineToInsertAfter in
-                        insertAfterLineNumber = lineToInsertAfter.lineNumber
-                        showingAddLine = true
-                    } onEditFlags: { lineToFlag in
-                        lineBeingFlagged = lineToFlag
-                        showingFlagEditor = true
                     }
                 }
             }
@@ -317,6 +331,52 @@ struct EditScriptView: View {
     }
     
     // MARK: - Actions
+    
+    private func groupLinesBySection() -> [LineGroup] {
+        // For performance, only process visible sections
+        let maxVisibleSections = 20
+        let limitedSections = Array(sortedSections.prefix(maxVisibleSections))
+        
+        var groups: [LineGroup] = []
+        var lastProcessedLine = 0
+        
+        for section in limitedSections {
+            let startLine = section.startLineNumber
+            
+            // Find the next section's start line (or end of script)
+            let nextSectionStart = sortedSections.first {
+                $0.startLineNumber > startLine
+            }?.startLineNumber ?? (sortedLines.last?.lineNumber ?? 0) + 1
+            
+            // Add ungrouped lines before this section
+            if startLine > lastProcessedLine + 1 {
+                let ungroupedLines = sortedLines.filter {
+                    $0.lineNumber > lastProcessedLine && $0.lineNumber < startLine
+                }
+                if !ungroupedLines.isEmpty {
+                    groups.append(LineGroup(section: nil, lines: ungroupedLines))
+                }
+            }
+            
+            // Add this section's lines (only up to next section)
+            let sectionLines = sortedLines.filter {
+                $0.lineNumber >= startLine && $0.lineNumber < nextSectionStart
+            }
+            
+            if !sectionLines.isEmpty {
+                groups.append(LineGroup(section: section, lines: sectionLines))
+                lastProcessedLine = sectionLines.last?.lineNumber ?? lastProcessedLine
+            }
+        }
+        
+        // Add remaining ungrouped lines
+        let remainingLines = sortedLines.filter { $0.lineNumber > lastProcessedLine }
+        if !remainingLines.isEmpty {
+            groups.append(LineGroup(section: nil, lines: remainingLines))
+        }
+        
+        return groups
+    }
     
     private func updateSectionsAfterLineChange(at changePoint: Int, delta: Int) {
         script.sections.forEach { section in

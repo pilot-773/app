@@ -9,6 +9,7 @@ import SwiftUI
 import SwiftData
 import MIDIKitIO
 import UniformTypeIdentifiers
+import WhatsNewKit
 
 struct HomeScreenView: View {
     @Query var shows: [Show] = []
@@ -87,6 +88,7 @@ struct HomeScreenView: View {
                     Text(error.localizedDescription)
                 }
             }
+            .whatsNewSheet()
         }
     }
     
