@@ -208,13 +208,13 @@ struct ScriptTableView: UIViewRepresentable {
                         isEditing: parent.editingLineId == item.line!.id,
                         editingText: parent.editingText,
                         onElementTap: { element in
-                            parent.onElementTap?(element, item.line!)
+                            self.parent.onElementTap?(element, item.line!)
                         },
                         onLineTap: {
-                            parent.onLineTap?(item.line!)
+                            self.parent.onLineTap?(item.line!)
                         },
                         onEditComplete: { newText in
-                            parent.onEditComplete?(item.line!, newText)
+                            self.parent.onEditComplete?(item.line!, newText)
                         },
                         onCueDelete: parent.onCueDelete!,
                         onCueEdit: parent.onCueEdit!
