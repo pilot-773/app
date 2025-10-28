@@ -48,6 +48,9 @@ struct EditScriptView: View {
     @State private var lineBeingFlagged: ScriptLine?
     @StateObject private var refreshTrigger = RefreshTrigger()
     
+    @State private var lineGroups: [LineGroup] = []
+
+    
     var sortedLines: [ScriptLine] {
         script.lines.sorted { $0.lineNumber < $1.lineNumber }
     }
@@ -126,7 +129,7 @@ struct EditScriptView: View {
             }
         }
         .sheet(isPresented: $showingFlagEditor) {
-            if selectedLines.count == 1, let line = lineBeingFlagged {
+            if selectedLines.count == 1, let line = selectedLinesArray.first {
                 FlagEditorView(line: line) {
                     try? modelContext.save()
                     refreshTrigger.refresh()
@@ -195,6 +198,9 @@ struct EditScriptView: View {
         }
         .navigationTitle(Text(script.name))
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            lineGroups = await groupLinesBySection(lines: sortedLines, sections: sortedSections)
+        }
     }
     
     // MARK: - View Components
@@ -287,95 +293,127 @@ struct EditScriptView: View {
     }
     
     private var scriptContentView: some View {
-        ScrollView {
-            LazyVStack(spacing: 8) {
-                ForEach(groupLinesBySection(), id: \.id) { group in
-                    if let section = group.section {
-                        SectionHeaderView(section: section)
-                            .padding(.horizontal)
-                            .padding(.top, 8)
-                    }
-                    
-                    ForEach(group.lines, id: \.id) { line in
-                        EditableScriptLineView(
-                            line: line,
-                            isEditing: isEditing,
-                            isSelected: selectedLines.contains(line.id),
-                            isEditingText: editingLineId == line.id,
-                            isSelectingForSection: isSelectingLineForSection,
-                            editingText: $editingText
-                        ) { selectedLine in
-                            if isSelectingLineForSection {
-                                selectedLineForSection = selectedLine
-                                showingLineConfirmation = true
-                                isSelectingLineForSection = false
-                            } else {
-                                toggleLineSelection(selectedLine)
-                            }
-                        } onStartTextEdit: { lineToEdit in
-                            startEditing(line: lineToEdit)
-                        } onFinishTextEdit: { newText in
-                            finishEditing(newText: newText)
-                        } onInsertAfter: { lineToInsertAfter in
-                            insertAfterLineNumber = lineToInsertAfter.lineNumber
-                            showingAddLine = true
-                        } onEditFlags: { lineToFlag in
-                            lineBeingFlagged = lineToFlag
-                            showingFlagEditor = true
-                        }
-                    }
+        ScriptTableView(
+            lineGroups: lineGroups,
+            isEditing: isEditing,
+            selectedLines: selectedLines,
+            editingLineId: editingLineId,
+            isSelectingForSection: isSelectingLineForSection,
+            editingText: $editingText,
+            onToggleSelection: { selectedLine in
+                if isSelectingLineForSection {
+                    selectedLineForSection = selectedLine
+                    showingLineConfirmation = true
+                    isSelectingLineForSection = false
+                } else {
+                    toggleLineSelection(selectedLine)
                 }
+            },
+            onStartTextEdit: { lineToEdit in
+                startEditing(line: lineToEdit)
+            },
+            onFinishTextEdit: { newText in
+                finishEditing(newText: newText)
+            },
+            onInsertAfter: { lineToInsertAfter in
+                insertAfterLineNumber = lineToInsertAfter.lineNumber
+                showingAddLine = true
+            },
+            onEditFlags: { lineToFlag in
+                lineBeingFlagged = lineToFlag
+                showingFlagEditor = true
+            },
+            onSectionTap: { section in
+                print("sec tap")
+                // dismiss()
+                // NotificationCenter.default.post(
+                //     name: NSNotification.Name("ScrollToSection"),
+                //     object: section.id
+                // )
             }
-            .padding()
-        }
+        )
     }
     
     // MARK: - Actions
     
-    private func groupLinesBySection() -> [LineGroup] {
-        // For performance, only process visible sections
-        let maxVisibleSections = 20
-        let limitedSections = Array(sortedSections.prefix(maxVisibleSections))
+    private func groupLinesBySection(lines: [ScriptLine], sections: [ScriptSection]) async -> [LineGroup] {
+        guard !lines.isEmpty else { return [] }
+        guard !sections.isEmpty else {
+            return [LineGroup(section: nil, lines: lines)]
+        }
+        
+        let sectionRanges = await withTaskGroup(of: (Int, Int, Int).self) { group in
+            for (index, section) in sections.enumerated() {
+                group.addTask {
+                    let startLine = section.startLineNumber
+                    let endLine = (index + 1 < sections.count) ?
+                        sections[index + 1].startLineNumber - 1 :
+                        lines.last?.lineNumber ?? startLine
+                    return (index, startLine, endLine)
+                }
+            }
+            
+            var ranges: [(Int, Int, Int)] = []
+            for await range in group {
+                ranges.append(range)
+            }
+            return ranges.sorted { $0.0 < $1.0 }
+        }
         
         var groups: [LineGroup] = []
-        var lastProcessedLine = 0
+        var processedLines = Set<Int>()
         
-        for section in limitedSections {
-            let startLine = section.startLineNumber
+        for (index, startLine, endLine) in sectionRanges {
+            let section = sections[index]
             
-            // Find the next section's start line (or end of script)
-            let nextSectionStart = sortedSections.first {
-                $0.startLineNumber > startLine
-            }?.startLineNumber ?? (sortedLines.last?.lineNumber ?? 0) + 1
+            let startIdx = binarySearchStart(lines: lines, lineNumber: startLine)
+            let endIdx = binarySearchEnd(lines: lines, lineNumber: endLine)
             
-            // Add ungrouped lines before this section
-            if startLine > lastProcessedLine + 1 {
-                let ungroupedLines = sortedLines.filter {
-                    $0.lineNumber > lastProcessedLine && $0.lineNumber < startLine
-                }
-                if !ungroupedLines.isEmpty {
-                    groups.append(LineGroup(section: nil, lines: ungroupedLines))
-                }
-            }
+            guard startIdx < lines.count && endIdx >= 0 else { continue }
             
-            // Add this section's lines (only up to next section)
-            let sectionLines = sortedLines.filter {
-                $0.lineNumber >= startLine && $0.lineNumber < nextSectionStart
-            }
+            let sectionLines = lines[startIdx...min(endIdx, lines.count - 1)]
+                .filter { !processedLines.contains($0.lineNumber) }
             
             if !sectionLines.isEmpty {
-                groups.append(LineGroup(section: section, lines: sectionLines))
-                lastProcessedLine = sectionLines.last?.lineNumber ?? lastProcessedLine
+                groups.append(LineGroup(section: section, lines: Array(sectionLines)))
+                processedLines.formUnion(sectionLines.map { $0.lineNumber })
             }
         }
         
-        // Add remaining ungrouped lines
-        let remainingLines = sortedLines.filter { $0.lineNumber > lastProcessedLine }
-        if !remainingLines.isEmpty {
-            groups.append(LineGroup(section: nil, lines: remainingLines))
+        let ungroupedLines = lines.filter { !processedLines.contains($0.lineNumber) }
+        if !ungroupedLines.isEmpty {
+            groups.append(LineGroup(section: nil, lines: ungroupedLines))
         }
         
-        return groups
+        return groups.sorted {
+            ($0.lines.first?.lineNumber ?? 0) < ($1.lines.first?.lineNumber ?? 0)
+        }
+    }
+    
+    private func binarySearchStart(lines: [ScriptLine], lineNumber: Int) -> Int {
+        var left = 0, right = lines.count - 1
+        while left <= right {
+            let mid = (left + right) / 2
+            if lines[mid].lineNumber >= lineNumber {
+                right = mid - 1
+            } else {
+                left = mid + 1
+            }
+        }
+        return left
+    }
+    
+    private func binarySearchEnd(lines: [ScriptLine], lineNumber: Int) -> Int {
+        var left = 0, right = lines.count - 1
+        while left <= right {
+            let mid = (left + right) / 2
+            if lines[mid].lineNumber <= lineNumber {
+                left = mid + 1
+            } else {
+                right = mid - 1
+            }
+        }
+        return right
     }
     
     private func updateSectionsAfterLineChange(at changePoint: Int, delta: Int) {
@@ -667,7 +705,7 @@ struct EditableScriptLineView: View {
     
     private var backgroundOpacity: Double {
         if isSelected && isEditing {
-            return 0.6
+            return 1.0
         } else if line.isMarked {
             return 0.3
         } else {

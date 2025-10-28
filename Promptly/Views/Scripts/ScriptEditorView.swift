@@ -180,41 +180,26 @@ struct ScriptEditorView: View {
     }
     
     private var scriptContentView: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
-                    ForEach(lineGroups, id: \.id) { group in
-                        if let section = group.section {
-                            SectionHeaderView(section: section)
-                                .padding(.horizontal, 16)
-                                .padding(.top, 8)
-                        }
-                        
-                        ForEach(group.lines, id: \.id) { line in
-                            ScriptLineView(
-                                line: line,
-                                isSelected: selectedLine?.id == line.id,
-                                isEditing: editingLineId == line.id,
-                                editingText: $editingText,
-                                onElementTap: { element in
-                                    handleElementTap(element: element, line: line)
-                                },
-                                onLineTap: {
-                                    handleLineTap(line: line)
-                                },
-                                onEditComplete: { newText in
-                                    updateLineContent(line: line, newText: newText)
-                                },
-                                onCueDelete: handleCueDelete,
-                                onCueEdit: handleCueEdit
-                            )
-                            .id("line-\(line.id)")
-                        }
-                    }
-                }
-                .padding()
+        ScriptTableView(
+            lineGroups: lineGroups,
+            selectedLine: selectedLine,
+            editingLineId: editingLineId,
+            editingText: $editingText,
+            onElementTap: { element, line in
+                handleElementTap(element: element, line: line)
+            },
+            onLineTap: { line in
+                handleLineTap(line: line)
+            },
+            onEditComplete: { line, newText in
+                updateLineContent(line: line, newText: newText)
+            },
+            onCueDelete: handleCueDelete,
+            onCueEdit: handleCueEdit,
+            onSectionTap: { section in
+                
             }
-        }
+        )
     }
     
     private func handleElementTap(element: LineElement, line: ScriptLine) {
