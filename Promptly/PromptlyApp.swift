@@ -53,25 +53,9 @@ extension PromptlyApp: WhatsNewCollectionProvider {
     /// A WhatsNewCollection
     var whatsNewCollection: WhatsNewCollection {
         WhatsNew(
-            version: "1.0.4",
+            version: "1.0.5",
             title: "DSMPrompt",
             features: [
-                .init(
-                    image: .init(
-                        systemName: "square.and.arrow.down.on.square",
-                        foregroundColor: .orange
-                    ),
-                    title: "Import & Export Show Files",
-                    subtitle: "Import and export show files to have manual backups / share between members."
-                ),
-                .init(
-                    image: .init(
-                        systemName: "wand.and.stars",
-                        foregroundColor: .cyan
-                    ),
-                    title: "What's New View",
-                    subtitle: "Find out what's changed between versions."
-                ),
                 .init(
                     image: .init(
                         systemName: "hammer",
@@ -79,14 +63,6 @@ extension PromptlyApp: WhatsNewCollectionProvider {
                     ),
                     title: "Bug Fixes",
                     subtitle: "Bug fixes and stability improvements."
-                ),
-                .init(
-                    image: .init(
-                        systemName: "hammer",
-                        foregroundColor: .red
-                    ),
-                    title: "PDF Rendering",
-                    subtitle: "Fixed bug where if you were in dark mode the text would not show in PDF exports."
                 )
             ],
             primaryAction: .init(
