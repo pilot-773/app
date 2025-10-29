@@ -1,5 +1,5 @@
 //
-//  ScriptEditorView_v2.swift
+//  ScriptEditorView.swift
 //  Promptly
 //
 //  Created by Sasha Bagrov on 04/06/2025.
@@ -21,10 +21,10 @@ struct ScriptEditorView: View {
     @State private var editingText: String = ""
     @State private var showingDeleteCueAlert = false
     @State private var cueToDelete: Cue?
-    @State private var sortedLines: [ScriptLine] = []
-    @State private var sortedSections: [ScriptSection] = []
-    @State private var lineGroups: [LineGroup] = []
-    @State private var isProcessingGroups = false
+    
+    private var sortedLines: [ScriptLine] {
+        script.lines.sorted(by: { $0.lineNumber < $1.lineNumber })
+    }
     
     private func handleCueEdit(cue: Cue) {
         guard let line = script.lines.first(where: { $0.id == cue.lineId }) else { return }
@@ -33,121 +33,9 @@ struct ScriptEditorView: View {
         isShowingCueEditor = true
     }
     
-    private func setupSortedData() {
-        Task.detached(priority: .userInitiated) {
-            let lines = script.lines.sorted { $0.lineNumber < $1.lineNumber }
-            let sections = script.sections.sorted { $0.startLineNumber < $1.startLineNumber }
-            let groups = await groupLinesBySection(lines: lines, sections: sections)
-            
-            await MainActor.run {
-                self.sortedLines = lines
-                self.sortedSections = sections
-                self.lineGroups = groups
-                self.isProcessingGroups = false
-            }
-        }
-    }
-    
-    private func groupLinesBySection(lines: [ScriptLine], sections: [ScriptSection]) async -> [LineGroup] {
-        guard !lines.isEmpty else { return [] }
-        guard !sections.isEmpty else {
-            return [LineGroup(section: nil, lines: lines)]
-        }
-        
-        let sectionRanges = await withTaskGroup(of: (Int, Int, Int).self) { group in
-            for (index, section) in sections.enumerated() {
-                group.addTask {
-                    let startLine = section.startLineNumber
-                    let endLine = (index + 1 < sections.count) ?
-                        sections[index + 1].startLineNumber - 1 :
-                        lines.last?.lineNumber ?? startLine
-                    return (index, startLine, endLine)
-                }
-            }
-            
-            var ranges: [(Int, Int, Int)] = []
-            for await range in group {
-                ranges.append(range)
-            }
-            return ranges.sorted { $0.0 < $1.0 }
-        }
-        
-        var groups: [LineGroup] = []
-        var processedLines = Set<Int>()
-        
-        for (index, startLine, endLine) in sectionRanges {
-            let section = sections[index]
-            
-            let startIdx = binarySearchStart(lines: lines, lineNumber: startLine)
-            let endIdx = binarySearchEnd(lines: lines, lineNumber: endLine)
-            
-            guard startIdx < lines.count && endIdx >= 0 else { continue }
-            
-            let sectionLines = lines[startIdx...min(endIdx, lines.count - 1)]
-                .filter { !processedLines.contains($0.lineNumber) }
-            
-            if !sectionLines.isEmpty {
-                groups.append(LineGroup(section: section, lines: Array(sectionLines)))
-                processedLines.formUnion(sectionLines.map { $0.lineNumber })
-            }
-        }
-        
-        let ungroupedLines = lines.filter { !processedLines.contains($0.lineNumber) }
-        if !ungroupedLines.isEmpty {
-            groups.append(LineGroup(section: nil, lines: ungroupedLines))
-        }
-        
-        return groups.sorted {
-            ($0.lines.first?.lineNumber ?? 0) < ($1.lines.first?.lineNumber ?? 0)
-        }
-    }
-    
-    private func binarySearchStart(lines: [ScriptLine], lineNumber: Int) -> Int {
-        var left = 0, right = lines.count - 1
-        while left <= right {
-            let mid = (left + right) / 2
-            if lines[mid].lineNumber >= lineNumber {
-                right = mid - 1
-            } else {
-                left = mid + 1
-            }
-        }
-        return left
-    }
-    
-    private func binarySearchEnd(lines: [ScriptLine], lineNumber: Int) -> Int {
-        var left = 0, right = lines.count - 1
-        while left <= right {
-            let mid = (left + right) / 2
-            if lines[mid].lineNumber <= lineNumber {
-                left = mid + 1
-            } else {
-                right = mid - 1
-            }
-        }
-        return right
-    }
-
     var body: some View {
         VStack(spacing: 0) {
-            if isProcessingGroups {
-                ProgressView("Organizing script...")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                scriptContentView
-            }
-        }
-        .onAppear {
-            isProcessingGroups = true
-            setupSortedData()
-        }
-        .onChange(of: script.sections.count) { _, _ in
-            isProcessingGroups = true
-            setupSortedData()
-        }
-        .onChange(of: script.lines.count) { _, _ in
-            isProcessingGroups = true
-            setupSortedData()
+            scriptContentView
         }
         .sheet(isPresented: $isShowingCueEditor) {
             if let line = selectedLine, let element = selectedElement {
@@ -180,26 +68,33 @@ struct ScriptEditorView: View {
     }
     
     private var scriptContentView: some View {
-        ScriptTableView(
-            lineGroups: lineGroups,
-            selectedLine: selectedLine,
-            editingLineId: editingLineId,
-            editingText: $editingText,
-            onElementTap: { element, line in
-                handleElementTap(element: element, line: line)
-            },
-            onLineTap: { line in
-                handleLineTap(line: line)
-            },
-            onEditComplete: { line, newText in
-                updateLineContent(line: line, newText: newText)
-            },
-            onCueDelete: handleCueDelete,
-            onCueEdit: handleCueEdit,
-            onSectionTap: { section in
-                
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    ForEach(sortedLines, id: \.id) { line in
+                        ScriptLineView(
+                            line: line,
+                            isSelected: selectedLine?.id == line.id,
+                            isEditing: editingLineId == line.id,
+                            editingText: $editingText,
+                            onElementTap: { element in
+                                handleElementTap(element: element, line: line)
+                            },
+                            onLineTap: {
+                                handleLineTap(line: line)
+                            },
+                            onEditComplete: { newText in
+                                updateLineContent(line: line, newText: newText)
+                            },
+                            onCueDelete: handleCueDelete,
+                            onCueEdit: handleCueEdit
+                        )
+                        .id("line-\(line.id)")
+                    }
+                }
+                .padding()
             }
-        )
+        }
     }
     
     private func handleElementTap(element: LineElement, line: ScriptLine) {
@@ -223,8 +118,6 @@ struct ScriptEditorView: View {
         line.parseContentIntoElements()
         editingLineId = nil
         try? modelContext.save()
-        isProcessingGroups = true
-        setupSortedData()
     }
     
     private func handleCueDelete(cue: Cue) {

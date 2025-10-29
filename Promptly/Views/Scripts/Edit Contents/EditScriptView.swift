@@ -14,12 +14,6 @@ class RefreshTrigger: ObservableObject {
     }
 }
 
-struct LineGroup: Identifiable {
-    let id = UUID()
-    let section: ScriptSection?
-    let lines: [ScriptLine]
-}
-
 struct EditScriptView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -47,9 +41,6 @@ struct EditScriptView: View {
     @State private var showingFlagEditor = false
     @State private var lineBeingFlagged: ScriptLine?
     @StateObject private var refreshTrigger = RefreshTrigger()
-    
-    @State private var lineGroups: [LineGroup] = []
-
     
     var sortedLines: [ScriptLine] {
         script.lines.sorted { $0.lineNumber < $1.lineNumber }
@@ -129,7 +120,7 @@ struct EditScriptView: View {
             }
         }
         .sheet(isPresented: $showingFlagEditor) {
-            if selectedLines.count == 1, let line = selectedLinesArray.first {
+            if selectedLines.count == 1, let line = lineBeingFlagged {
                 FlagEditorView(line: line) {
                     try? modelContext.save()
                     refreshTrigger.refresh()
@@ -198,9 +189,6 @@ struct EditScriptView: View {
         }
         .navigationTitle(Text(script.name))
         .navigationBarTitleDisplayMode(.inline)
-        .task {
-            lineGroups = await groupLinesBySection(lines: sortedLines, sections: sortedSections)
-        }
     }
     
     // MARK: - View Components
@@ -293,139 +281,42 @@ struct EditScriptView: View {
     }
     
     private var scriptContentView: some View {
-        ScriptTableView(
-            lineGroups: lineGroups,
-            isEditing: isEditing,
-            selectedLines: selectedLines,
-            editingLineId: editingLineId,
-            isSelectingForSection: isSelectingLineForSection,
-            editingText: $editingText,
-            onToggleSelection: { selectedLine in
-                if isSelectingLineForSection {
-                    selectedLineForSection = selectedLine
-                    showingLineConfirmation = true
-                    isSelectingLineForSection = false
-                } else {
-                    toggleLineSelection(selectedLine)
+        ScrollView {
+            LazyVStack(spacing: 8) {
+                ForEach(sortedLines, id: \.id) { line in
+                    EditableScriptLineView(
+                        line: line,
+                        isEditing: isEditing,
+                        isSelected: selectedLines.contains(line.id),
+                        isEditingText: editingLineId == line.id,
+                        isSelectingForSection: isSelectingLineForSection,
+                        editingText: $editingText
+                    ) { selectedLine in
+                        if isSelectingLineForSection {
+                            selectedLineForSection = selectedLine
+                            showingLineConfirmation = true
+                            isSelectingLineForSection = false
+                        } else {
+                            toggleLineSelection(selectedLine)
+                        }
+                    } onStartTextEdit: { lineToEdit in
+                        startEditing(line: lineToEdit)
+                    } onFinishTextEdit: { newText in
+                        finishEditing(newText: newText)
+                    } onInsertAfter: { lineToInsertAfter in
+                        insertAfterLineNumber = lineToInsertAfter.lineNumber
+                        showingAddLine = true
+                    } onEditFlags: { lineToFlag in
+                        lineBeingFlagged = lineToFlag
+                        showingFlagEditor = true
+                    }
                 }
-            },
-            onStartTextEdit: { lineToEdit in
-                startEditing(line: lineToEdit)
-            },
-            onFinishTextEdit: { newText in
-                finishEditing(newText: newText)
-            },
-            onInsertAfter: { lineToInsertAfter in
-                insertAfterLineNumber = lineToInsertAfter.lineNumber
-                showingAddLine = true
-            },
-            onEditFlags: { lineToFlag in
-                lineBeingFlagged = lineToFlag
-                showingFlagEditor = true
-            },
-            onSectionTap: { section in
-                print("sec tap")
-                // dismiss()
-                // NotificationCenter.default.post(
-                //     name: NSNotification.Name("ScrollToSection"),
-                //     object: section.id
-                // )
             }
-        )
+            .padding()
+        }
     }
     
     // MARK: - Actions
-    
-    private func groupLinesBySection(lines: [ScriptLine], sections: [ScriptSection]) async -> [LineGroup] {
-        guard !lines.isEmpty else { return [] }
-        guard !sections.isEmpty else {
-            return [LineGroup(section: nil, lines: lines)]
-        }
-        
-        let sectionRanges = await withTaskGroup(of: (Int, Int, Int).self) { group in
-            for (index, section) in sections.enumerated() {
-                group.addTask {
-                    let startLine = section.startLineNumber
-                    let endLine = (index + 1 < sections.count) ?
-                        sections[index + 1].startLineNumber - 1 :
-                        lines.last?.lineNumber ?? startLine
-                    return (index, startLine, endLine)
-                }
-            }
-            
-            var ranges: [(Int, Int, Int)] = []
-            for await range in group {
-                ranges.append(range)
-            }
-            return ranges.sorted { $0.0 < $1.0 }
-        }
-        
-        var groups: [LineGroup] = []
-        var processedLines = Set<Int>()
-        
-        for (index, startLine, endLine) in sectionRanges {
-            let section = sections[index]
-            
-            let startIdx = binarySearchStart(lines: lines, lineNumber: startLine)
-            let endIdx = binarySearchEnd(lines: lines, lineNumber: endLine)
-            
-            guard startIdx < lines.count && endIdx >= 0 else { continue }
-            
-            let sectionLines = lines[startIdx...min(endIdx, lines.count - 1)]
-                .filter { !processedLines.contains($0.lineNumber) }
-            
-            if !sectionLines.isEmpty {
-                groups.append(LineGroup(section: section, lines: Array(sectionLines)))
-                processedLines.formUnion(sectionLines.map { $0.lineNumber })
-            }
-        }
-        
-        let ungroupedLines = lines.filter { !processedLines.contains($0.lineNumber) }
-        if !ungroupedLines.isEmpty {
-            groups.append(LineGroup(section: nil, lines: ungroupedLines))
-        }
-        
-        return groups.sorted {
-            ($0.lines.first?.lineNumber ?? 0) < ($1.lines.first?.lineNumber ?? 0)
-        }
-    }
-    
-    private func binarySearchStart(lines: [ScriptLine], lineNumber: Int) -> Int {
-        var left = 0, right = lines.count - 1
-        while left <= right {
-            let mid = (left + right) / 2
-            if lines[mid].lineNumber >= lineNumber {
-                right = mid - 1
-            } else {
-                left = mid + 1
-            }
-        }
-        return left
-    }
-    
-    private func binarySearchEnd(lines: [ScriptLine], lineNumber: Int) -> Int {
-        var left = 0, right = lines.count - 1
-        while left <= right {
-            let mid = (left + right) / 2
-            if lines[mid].lineNumber <= lineNumber {
-                left = mid + 1
-            } else {
-                right = mid - 1
-            }
-        }
-        return right
-    }
-    
-    private func updateSectionsAfterLineChange(at changePoint: Int, delta: Int) {
-        script.sections.forEach { section in
-            if section.startLineNumber > changePoint {
-                section.startLineNumber += delta
-            }
-            if let endLine = section.endLineNumber, endLine > changePoint {
-                section.endLineNumber! += delta
-            }
-        }
-    }
     
     private func toggleLineSelection(_ line: ScriptLine) {
         if selectedLines.contains(line.id) {
@@ -466,48 +357,49 @@ struct EditScriptView: View {
     }
     
     private func deleteSelectedLines() {
-        let sortedLinesToDelete = linesToDelete.sorted { $0.lineNumber < $1.lineNumber }
-        let firstDeletedLineNumber = sortedLinesToDelete.first?.lineNumber ?? 0
-        let deletedCount = sortedLinesToDelete.count
-        
-        for line in linesToDelete {
-            script.lines.removeAll { $0.id == line.id }
+        let linesToRemove = selectedLines.compactMap { id in
+            script.lines.first { $0.id == id }
         }
-        
-        updateSectionsAfterLineChange(at: firstDeletedLineNumber, delta: -deletedCount)
-        
-        renumberLines()
-        try? modelContext.save()
-        
-        selectedLines.removeAll()
-        linesToDelete.removeAll()
-    }
-    
-    private func combineSelectedLines() {
-        let sortedSelected = selectedLinesArray.sorted { $0.lineNumber < $1.lineNumber }
-        guard let firstLine = sortedSelected.first else { return }
-        
-        let combinedContent = sortedSelected.map { $0.content }.joined(separator: " ")
-        let combinedCues = sortedSelected.flatMap { $0.cues }
-        let combinedFlags = Array(Set(sortedSelected.flatMap { $0.flags }))
-        
-        let linesToRemove = sortedSelected.dropFirst()
-        let removedCount = linesToRemove.count
         
         for line in linesToRemove {
             script.lines.removeAll { $0.id == line.id }
+            modelContext.delete(line)
         }
         
-        firstLine.content = combinedContent
-        firstLine.cues = combinedCues
-        firstLine.flags = combinedFlags
-        
-        updateSectionsAfterLineChange(at: firstLine.lineNumber, delta: -removedCount)
-        
+        selectedLines.removeAll()
+        linesToDelete.removeAll()
         renumberLines()
         try? modelContext.save()
+    }
+    
+    private func combineSelectedLines() {
+        let linesToCombine = selectedLines.compactMap { id in
+            script.lines.first { $0.id == id }
+        }.sorted { $0.lineNumber < $1.lineNumber }
+        
+        guard let firstLine = linesToCombine.first else { return }
+        
+        let combinedContent = linesToCombine.map { $0.content }.joined(separator: " ")
+        let allCues = linesToCombine.flatMap { $0.cues }
+        let allFlags = Array(Set(linesToCombine.flatMap { $0.flags }))
+        
+        firstLine.content = combinedContent
+        firstLine.flags = allFlags
+        firstLine.parseContentIntoElements()
+        
+        for cue in allCues {
+            cue.lineId = firstLine.id
+        }
+        
+        let linesToRemove = Array(linesToCombine.dropFirst())
+        for line in linesToRemove {
+            script.lines.removeAll { $0.id == line.id }
+            modelContext.delete(line)
+        }
         
         selectedLines.removeAll()
+        renumberLines()
+        try? modelContext.save()
     }
     
     private func createSectionWithSelectedLine() {
@@ -705,7 +597,7 @@ struct EditableScriptLineView: View {
     
     private var backgroundOpacity: Double {
         if isSelected && isEditing {
-            return 1.0
+            return 0.6
         } else if line.isMarked {
             return 0.3
         } else {
@@ -1154,15 +1046,6 @@ struct AddLineView: View {
             line.lineNumber += 1
         }
         
-        script.sections.forEach { section in
-            if section.startLineNumber >= newLineNumber {
-                section.startLineNumber += 1
-            }
-            if let endLine = section.endLineNumber, endLine >= newLineNumber {
-                section.endLineNumber! += 1
-            }
-        }
-        
         let newLine = ScriptLine(
             id: UUID(),
             lineNumber: newLineNumber,
@@ -1178,14 +1061,29 @@ struct AddLineView: View {
     }
     
     private func iconForFlag(_ flag: ScriptLineFlags) -> String {
-        return flag.icon
+        switch flag {
+        case .stageDirection:
+            return "theatermasks"
+        case .skip:
+            return "forward.fill"
+        }
     }
     
     private func labelForFlag(_ flag: ScriptLineFlags) -> String {
-        return flag.label
+        switch flag {
+        case .stageDirection:
+            return "Stage"
+        case .skip:
+            return "Skip"
+        }
     }
     
     private func colorForFlag(_ flag: ScriptLineFlags) -> Color {
-        return flag.color
+        switch flag {
+        case .stageDirection:
+            return .purple
+        case .skip:
+            return .red
+        }
     }
 }
