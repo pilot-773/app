@@ -53,7 +53,7 @@ extension PromptlyApp: WhatsNewCollectionProvider {
     /// A WhatsNewCollection
     var whatsNewCollection: WhatsNewCollection {
         WhatsNew(
-            version: "1.0.5",
+            version: "1.0.6",
             title: "DSMPrompt",
             features: [
                 .init(
@@ -61,8 +61,16 @@ extension PromptlyApp: WhatsNewCollectionProvider {
                         systemName: "hammer",
                         foregroundColor: .gray
                     ),
-                    title: "Bug Fixes",
-                    subtitle: "Bug fixes and stability improvements."
+                    title: "Bug Fixes and reverted features!",
+                    subtitle: "Whoops! We fixed all the issues in the latest version."
+                ),
+                .init(
+                    image: .init(
+                        systemName: "hammer",
+                        foregroundColor: .gray
+                    ),
+                    title: "Still has exports / imports",
+                    subtitle: "Only the scripts changed. Essentially - 1.0.4 + 1.0.3 = 1.0.6?"
                 )
             ],
             primaryAction: .init(
