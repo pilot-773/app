@@ -53,7 +53,7 @@ extension PromptlyApp: WhatsNewCollectionProvider {
     /// A WhatsNewCollection
     var whatsNewCollection: WhatsNewCollection {
         WhatsNew(
-            version: "1.0.6",
+            version: "1.0.7",
             title: "DSMPrompt",
             features: [
                 .init(
@@ -67,7 +67,7 @@ extension PromptlyApp: WhatsNewCollectionProvider {
                 .init(
                     image: .init(
                         systemName: "hammer",
-                        foregroundColor: .gray
+                        foregroundColor: .red
                     ),
                     title: "Still has exports / imports",
                     subtitle: "Only the scripts changed. Essentially - 1.0.4 + 1.0.3 = 1.0.6?"

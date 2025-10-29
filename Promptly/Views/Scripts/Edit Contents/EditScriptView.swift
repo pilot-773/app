@@ -120,7 +120,7 @@ struct EditScriptView: View {
             }
         }
         .sheet(isPresented: $showingFlagEditor) {
-            if selectedLines.count == 1, let line = lineBeingFlagged {
+            if selectedLines.count == 1, let line = selectedLinesArray.first {
                 FlagEditorView(line: line) {
                     try? modelContext.save()
                     refreshTrigger.refresh()
